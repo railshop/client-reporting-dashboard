@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { LoginPage } from '@/pages/Login';
 import { DashboardPage } from '@/pages/Dashboard';
 import { AdminHomePage } from '@/pages/AdminHome';
+import { AdminUsersPage } from '@/pages/AdminUsers';
 
 function RootRedirect() {
   const { user, loading } = useAuth();
@@ -30,8 +31,16 @@ export default function App() {
           <Route
             path="/admin"
             element={
-              <RequireAuth>
+              <RequireAuth requireAdmin>
                 <AdminHomePage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <RequireAuth requireAdmin>
+                <AdminUsersPage />
               </RequireAuth>
             }
           />

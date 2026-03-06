@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 import { useReport } from '@/hooks/useReport';
 import { Topbar } from '@/components/dashboard/Topbar';
 import { TabNav } from '@/components/dashboard/TabNav';
@@ -7,6 +8,31 @@ import { MonthPicker } from '@/components/dashboard/MonthPicker';
 import { OverviewTab } from '@/components/dashboard/tabs/OverviewTab';
 import { SourceTab } from '@/components/dashboard/tabs/SourceTab';
 import { SOURCE_LABELS } from '@/shared/schemas/sources';
+import { cn } from '@/lib/utils';
+
+function MinimalTopbar() {
+  const { logout, user } = useAuth();
+  return (
+    <div className="sticky top-0 z-[100] bg-bg border-b border-border-v1">
+      <div className="max-w-[1200px] mx-auto px-6 h-[58px] flex items-center gap-4">
+        <img src="/railshop.svg" alt="Railshop" className="h-5 brightness-0 invert" />
+        <div className="ml-auto flex items-center gap-4">
+          {user?.role === 'admin' && (
+            <Link to="/admin" className="font-mono text-[10px] text-text-3 hover:text-text-2 transition-colors tracking-[0.05em]">
+              ← ADMIN
+            </Link>
+          )}
+          <button
+            onClick={logout}
+            className="font-mono text-[10px] text-text-3 hover:text-text-2 transition-colors"
+          >
+            LOGOUT
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const TAB_ORDER: string[] = ['overview', 'ga4', 'gsc', 'lsa', 'google_ads', 'meta', 'servicetitan', 'gbp'];
 
@@ -45,20 +71,26 @@ export function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-bg flex items-center justify-center">
-        <div className="text-text-3 font-mono text-sm animate-pulse">Loading report...</div>
+      <div className="min-h-screen bg-bg">
+        <MinimalTopbar />
+        <div className="flex items-center justify-center" style={{ minHeight: 'calc(100vh - 58px)' }}>
+          <div className="text-text-3 font-mono text-sm animate-pulse">Loading report...</div>
+        </div>
       </div>
     );
   }
 
   if (error || !report) {
     return (
-      <div className="min-h-screen bg-bg flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-v1-red font-mono text-sm mb-2">{error || 'Report not found'}</p>
-          <p className="text-text-3 text-sm">
-            No report data available for this client/period.
-          </p>
+      <div className="min-h-screen bg-bg">
+        <MinimalTopbar />
+        <div className="flex items-center justify-center" style={{ minHeight: 'calc(100vh - 58px)' }}>
+          <div className="text-center">
+            <p className="text-red font-mono text-sm mb-2">{error || 'Report not found'}</p>
+            <p className="text-text-3 text-sm">
+              No report data available for this client/period.
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -78,7 +110,7 @@ export function DashboardPage() {
       <div className="max-w-[1200px] mx-auto px-6 pt-7 pb-20">
         {/* Month picker */}
         {periods.length > 1 && (
-          <div className="mb-6">
+          <div className="mb-6 print:hidden">
             <MonthPicker
               periods={periods}
               current={currentPeriod}
@@ -87,28 +119,33 @@ export function DashboardPage() {
           </div>
         )}
 
-        {/* Tab content */}
-        {activeTab === 'overview' && (
+        {/* Overview tab — always rendered, hidden when inactive (but visible in print) */}
+        <div className={cn(activeTab !== 'overview' && 'hidden print:block')}>
           <OverviewTab
             periodStart={report.period.period_start}
             overview={report.period.overview}
             priorities={report.period.next_priorities}
             onExport={handleExport}
           />
-        )}
+        </div>
 
-        {activeTab !== 'overview' && (() => {
-          const section = report.sections.find((s) => s.source === activeTab);
-          if (!section) return <p className="text-text-3 text-sm">No data for this tab.</p>;
-          return (
+        {/* Source tabs — all rendered, each hidden when inactive (but visible in print) */}
+        {report.sections.map((section) => (
+          <div
+            key={section.source}
+            className={cn(
+              'print-section',
+              activeTab !== section.source && 'hidden print:block'
+            )}
+          >
             <SourceTab
               source={section.source}
               kpis={section.kpis}
               tables={section.tables}
               railshopNotes={section.railshop_notes}
             />
-          );
-        })()}
+          </div>
+        ))}
       </div>
     </div>
   );

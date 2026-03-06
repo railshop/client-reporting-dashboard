@@ -8,7 +8,7 @@ interface TabNavProps {
 
 export function TabNav({ tabs, activeTab, onTabChange }: TabNavProps) {
   return (
-    <div className="nav-wrap bg-surface border-b border-border-v1 overflow-x-auto scrollbar-none">
+    <div className="nav-wrap print:hidden bg-surface border-b border-border-v1 overflow-x-auto scrollbar-none">
       <div className="max-w-[1200px] mx-auto px-6 flex w-max min-w-full">
         {tabs.map((tab) => (
           <button

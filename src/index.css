@@ -67,6 +67,25 @@
     --text-2:    #1A1F24;
     --text-3:    #4A5568;
   }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  /* Page breaks between source tab sections */
+  .print-section {
+    page-break-after: always;
+    break-after: page;
+  }
+  .print-section:last-child {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
 }
 
 @theme inline {

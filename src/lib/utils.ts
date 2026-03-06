@@ -6,12 +6,14 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatPeriod(dateStr: string): string {
-  const date = new Date(dateStr + 'T00:00:00');
+  // Handle both '2025-03-01' and '2025-03-01T05:00:00.000Z'
+  const clean = dateStr.slice(0, 10);
+  const date = new Date(clean + 'T00:00:00');
   return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }).toUpperCase();
 }
 
 export function periodToSlug(dateStr: string): string {
-  return dateStr.slice(0, 7); // '2026-02-01' → '2026-02'
+  return dateStr.slice(0, 7); // '2025-03-01' or ISO → '2025-03'
 }
 
 export function deltaColor(direction: 'up' | 'down' | 'neutral'): string {

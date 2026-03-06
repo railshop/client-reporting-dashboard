@@ -13,7 +13,7 @@ export function Topbar({ clientName, periodStart, status }: TopbarProps) {
   return (
     <div className="topbar sticky top-0 z-[100] bg-bg border-b border-border-v1">
       <div className="max-w-[1200px] mx-auto px-6 h-[58px] flex items-center gap-4">
-        <span className="text-blue font-bold text-lg tracking-tight">RS</span>
+        <img src="/railshop.svg" alt="Railshop" className="h-5 brightness-0 invert" />
         <div className="w-px h-5 bg-border-2 flex-shrink-0" />
         <span className="text-[13px] font-semibold text-text-2 tracking-[0.01em]">
           {clientName}

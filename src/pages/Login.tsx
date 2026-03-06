@@ -6,9 +6,9 @@ export function LoginPage() {
       <div className="flex flex-col items-center gap-8">
         <div className="flex flex-col items-center gap-3">
           <img
-            src="/railshop-white.png"
+            src="/railshop.svg"
             alt="Railshop"
-            className="h-10"
+            className="h-10 brightness-0 invert"
           />
           <p className="text-text-3 font-mono text-[10px] uppercase tracking-[0.1em]">
             Client Reporting Dashboard

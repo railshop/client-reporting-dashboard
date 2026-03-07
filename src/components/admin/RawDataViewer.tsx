@@ -93,7 +93,7 @@ function ArrayTable({ data, title }: { data: any[]; title: string }) {
 }
 
 function SourceRawData({ rawData }: { rawData: Record<string, any> }) {
-  const sections: JSX.Element[] = [];
+  const sections: React.ReactNode[] = [];
 
   for (const [key, value] of Object.entries(rawData)) {
     if (Array.isArray(value)) {

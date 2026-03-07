@@ -4,8 +4,13 @@ import { RequireAuth } from '@/components/auth/RequireAuth';
 import { useAuth } from '@/hooks/useAuth';
 import { LoginPage } from '@/pages/Login';
 import { DashboardPage } from '@/pages/Dashboard';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { AdminHomePage } from '@/pages/AdminHome';
 import { AdminUsersPage } from '@/pages/AdminUsers';
+import { AdminClientProfilePage } from '@/pages/AdminClientProfile';
+import { AdminClientIntegrationsPage } from '@/pages/AdminClientIntegrations';
+import { AdminReportsListPage } from '@/pages/AdminReportsList';
+import { AdminReportEditPage } from '@/pages/AdminReportEdit';
 
 function RootRedirect() {
   const { user, loading } = useAuth();
@@ -27,23 +32,23 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<RootRedirect />} />
 
-          {/* Admin routes */}
+          {/* Admin routes — wrapped in sidebar layout */}
           <Route
             path="/admin"
             element={
               <RequireAuth requireAdmin>
-                <AdminHomePage />
+                <AdminLayout />
               </RequireAuth>
             }
-          />
-          <Route
-            path="/admin/users"
-            element={
-              <RequireAuth requireAdmin>
-                <AdminUsersPage />
-              </RequireAuth>
-            }
-          />
+          >
+            <Route index element={<AdminHomePage />} />
+            <Route path="users" element={<AdminUsersPage />} />
+            <Route path="clients/:clientSlug" element={<Navigate to="profile" replace />} />
+            <Route path="clients/:clientSlug/profile" element={<AdminClientProfilePage />} />
+            <Route path="clients/:clientSlug/integrations" element={<AdminClientIntegrationsPage />} />
+            <Route path="clients/:clientSlug/reports" element={<AdminReportsListPage />} />
+            <Route path="clients/:clientSlug/reports/:period" element={<AdminReportEditPage />} />
+          </Route>
 
           {/* Client dashboard routes */}
           <Route

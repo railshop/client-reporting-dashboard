@@ -40,22 +40,38 @@ export default async (request: Request, _context: Context) => {
   const client = clients[0];
 
   // Get report period (specific or latest)
+  // Client users can only see published reports
+  const isClient = payload.role === 'client';
   let periods;
   if (period) {
     const periodStart = `${period}-01`;
-    periods = await sql`
-      SELECT id, period_start, status, overview, railshop_notes, next_priorities, published_at
-      FROM report_periods
-      WHERE client_id = ${client.id} AND period_start = ${periodStart}
-    `;
+    periods = isClient
+      ? await sql`
+          SELECT id, period_start, status, overview, railshop_notes, next_priorities, published_at
+          FROM report_periods
+          WHERE client_id = ${client.id} AND period_start = ${periodStart} AND status = 'published'
+        `
+      : await sql`
+          SELECT id, period_start, status, overview, railshop_notes, next_priorities, published_at
+          FROM report_periods
+          WHERE client_id = ${client.id} AND period_start = ${periodStart}
+        `;
   } else {
-    periods = await sql`
-      SELECT id, period_start, status, overview, railshop_notes, next_priorities, published_at
-      FROM report_periods
-      WHERE client_id = ${client.id}
-      ORDER BY period_start DESC
-      LIMIT 1
-    `;
+    periods = isClient
+      ? await sql`
+          SELECT id, period_start, status, overview, railshop_notes, next_priorities, published_at
+          FROM report_periods
+          WHERE client_id = ${client.id} AND status = 'published'
+          ORDER BY period_start DESC
+          LIMIT 1
+        `
+      : await sql`
+          SELECT id, period_start, status, overview, railshop_notes, next_priorities, published_at
+          FROM report_periods
+          WHERE client_id = ${client.id}
+          ORDER BY period_start DESC
+          LIMIT 1
+        `;
   }
 
   if (periods.length === 0) {

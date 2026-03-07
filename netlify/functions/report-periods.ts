@@ -29,13 +29,22 @@ export default async (request: Request, _context: Context) => {
     return forbidden();
   }
 
-  const rows = await sql`
-    SELECT rp.id, rp.period_start, rp.status, rp.published_at, rp.created_at
-    FROM report_periods rp
-    JOIN clients c ON rp.client_id = c.id
-    WHERE c.slug = ${clientSlug}
-    ORDER BY rp.period_start DESC
-  `;
+  // Client users can only see published periods
+  const rows = payload.role === 'client'
+    ? await sql`
+        SELECT rp.id, rp.period_start, rp.status, rp.published_at, rp.created_at
+        FROM report_periods rp
+        JOIN clients c ON rp.client_id = c.id
+        WHERE c.slug = ${clientSlug} AND rp.status = 'published'
+        ORDER BY rp.period_start DESC
+      `
+    : await sql`
+        SELECT rp.id, rp.period_start, rp.status, rp.published_at, rp.created_at
+        FROM report_periods rp
+        JOIN clients c ON rp.client_id = c.id
+        WHERE c.slug = ${clientSlug}
+        ORDER BY rp.period_start DESC
+      `;
 
   return jsonResponse({ periods: rows });
 };

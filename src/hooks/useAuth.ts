@@ -40,9 +40,13 @@ export function useAuthProvider(): AuthState {
     try {
       const data = await apiFetch<{ user: User }>('/auth-me');
       setUser(data.user);
-    } catch {
-      clearToken();
-      setUser(null);
+    } catch (err) {
+      // Only clear auth on actual 401 (handled by apiFetch redirect).
+      // Server errors (500) during dev should not log the user out.
+      if (err instanceof Error && err.message === 'Unauthorized') {
+        clearToken();
+        setUser(null);
+      }
     } finally {
       setLoading(false);
     }

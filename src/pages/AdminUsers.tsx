@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { apiFetch } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { AdminBreadcrumb } from '@/components/admin/AdminBreadcrumb';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,7 +38,6 @@ interface ClientOption {
 
 const INPUT_CLS =
   'w-full bg-surface-2 border border-border-v1 rounded-lg px-3 py-2 text-[13px] text-text-v1 placeholder:text-text-3 focus:outline-none focus:border-blue transition-colors';
-const LABEL_CLS = 'block font-mono text-[10px] text-text-3 mb-1.5 tracking-[0.05em]';
 
 function relativeTime(iso: string | null): string {
   if (!iso) return 'Never';
@@ -103,52 +105,43 @@ function UserForm({ title, clients, initial, passwordRequired, submitLabel, subm
       className="bg-surface border border-border-v1 rounded-[11px] px-6 py-5 mb-6"
     >
       <div className="flex items-center justify-between mb-4">
-        <div className="text-[12px] font-semibold text-text-3 uppercase tracking-[0.08em]">
-          {title}
-        </div>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="font-mono text-[10px] text-text-3 hover:text-text-2 transition-colors tracking-[0.05em]"
-        >
-          CANCEL
-        </button>
+        <div className="text-sm font-semibold text-foreground">{title}</div>
+        <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
+          Cancel
+        </Button>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-        <div>
-          <label className={LABEL_CLS}>NAME</label>
-          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required className={INPUT_CLS} placeholder="Full name" />
+        <div className="space-y-2">
+          <Label>Name</Label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Full name" />
         </div>
-        <div>
-          <label className={LABEL_CLS}>EMAIL</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className={INPUT_CLS} placeholder="email@example.com" />
+        <div className="space-y-2">
+          <Label>Email</Label>
+          <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="email@example.com" />
         </div>
-        <div>
-          <label className={LABEL_CLS}>
-            {passwordRequired ? 'PASSWORD' : 'NEW PASSWORD (leave blank to keep)'}
-          </label>
-          <input
+        <div className="space-y-2">
+          <Label>{passwordRequired ? 'Password' : 'New Password (leave blank to keep)'}</Label>
+          <Input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required={passwordRequired}
             minLength={8}
-            className={INPUT_CLS}
             placeholder="Min 8 characters"
           />
         </div>
-        <div>
-          <label className={LABEL_CLS}>ROLE</label>
+        <div className="space-y-2">
+          <Label>Role</Label>
           <select value={role} onChange={(e) => setRole(e.target.value as 'admin' | 'client')} className={INPUT_CLS}>
             <option value="client">Client</option>
             <option value="admin">Admin</option>
           </select>
         </div>
         {role === 'client' && (
-          <div className="sm:col-span-2">
-            <label className={LABEL_CLS}>CLIENT</label>
+          <div className="sm:col-span-2 space-y-2">
+            <Label>Client</Label>
             <select value={clientId} onChange={(e) => setClientId(e.target.value)} className={INPUT_CLS}>
-              <option value="">Select client…</option>
+              <option value="">Select client...</option>
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
@@ -156,14 +149,10 @@ function UserForm({ title, clients, initial, passwordRequired, submitLabel, subm
           </div>
         )}
       </div>
-      {error && <p className="text-red font-mono text-[11px] mb-3">{error}</p>}
-      <button
-        type="submit"
-        disabled={submitting}
-        className="font-mono text-[10px] tracking-[0.05em] text-bg bg-blue px-5 py-2 rounded-lg hover:bg-blue-dim transition-colors disabled:opacity-50"
-      >
+      {error && <p className="text-destructive text-sm mb-3">{error}</p>}
+      <Button type="submit" disabled={submitting}>
         {submitting ? submittingLabel : submitLabel}
-      </button>
+      </Button>
     </form>
   );
 }
@@ -212,8 +201,8 @@ function UserRowItem({ u, isSelf, isLast, clients, onDeleted, onUpdated }: UserR
           clients={clients}
           initial={{ name: u.name, email: u.email, role: u.role, clientId: u.client_id ?? '' }}
           passwordRequired={false}
-          submitLabel="SAVE CHANGES"
-          submittingLabel="SAVING…"
+          submitLabel="Save Changes"
+          submittingLabel="Saving..."
           onSubmit={handleUpdate}
           onCancel={() => setEditing(false)}
         />
@@ -224,34 +213,29 @@ function UserRowItem({ u, isSelf, isLast, clients, onDeleted, onUpdated }: UserR
   return (
     <div className={cn('flex items-center gap-4 px-5 py-3.5', !isLast && 'border-b border-border-v1')}>
       <div className="flex-1 min-w-0">
-        <div className="text-[13px] font-medium text-text-v1 truncate">{u.name}</div>
-        <div className="font-mono text-[10px] text-text-3 truncate">{u.email}</div>
+        <div className="text-sm font-medium text-foreground truncate">{u.name}</div>
+        <div className="text-xs text-muted-foreground truncate">{u.email}</div>
       </div>
       {u.client_name && (
-        <div className="font-mono text-[10px] text-text-3 shrink-0 hidden sm:block">
+        <div className="text-xs text-muted-foreground shrink-0 hidden sm:block">
           {u.client_name}
         </div>
       )}
-      <div className="font-mono text-[10px] text-text-3 shrink-0 hidden md:block">
+      <div className="text-xs text-muted-foreground shrink-0 hidden md:block">
         {relativeTime(u.last_login_at)}
       </div>
-      {/* Edit */}
-      <button
-        onClick={() => setEditing(true)}
-        className="font-mono text-[10px] text-text-3 hover:text-blue transition-colors shrink-0"
-        title="Edit user"
-      >
-        EDIT
-      </button>
-      {/* Delete with confirmation */}
+      <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+        Edit
+      </Button>
       {!isSelf && (
         <AlertDialog>
           <AlertDialogTrigger
-            className="font-mono text-[10px] text-text-3 hover:text-red transition-colors shrink-0 disabled:opacity-50"
-            disabled={deleting}
-          >
-            {deleting ? '…' : '✕'}
-          </AlertDialogTrigger>
+            render={
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" disabled={deleting}>
+                {deleting ? '...' : '✕'}
+              </Button>
+            }
+          />
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Delete user?</AlertDialogTitle>
@@ -275,7 +259,7 @@ function UserRowItem({ u, isSelf, isLast, clients, onDeleted, onUpdated }: UserR
 // ── Main page ──
 
 export function AdminUsersPage() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [showCreate, setShowCreate] = useState(false);
@@ -311,12 +295,12 @@ export function AdminUsersPage() {
 
   const renderSection = (label: string, list: UserRow[]) => (
     <section className="mb-8">
-      <div className="text-[11px] font-semibold text-text-3 uppercase tracking-[0.08em] mb-3">
+      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
         {label} ({list.length})
       </div>
       <div className="bg-surface border border-border-v1 rounded-[11px] overflow-hidden">
         {list.length === 0 ? (
-          <div className="px-5 py-4 text-text-3 text-sm">None yet.</div>
+          <div className="px-5 py-4 text-muted-foreground text-sm">None yet.</div>
         ) : (
           list.map((u, i) => (
             <UserRowItem
@@ -335,54 +319,35 @@ export function AdminUsersPage() {
   );
 
   return (
-    <div className="min-h-screen bg-bg">
-      {/* Topbar */}
-      <div className="sticky top-0 z-[100] bg-bg border-b border-border-v1">
-        <div className="max-w-[1200px] mx-auto px-6 h-[58px] flex items-center gap-4">
-          <img src="/railshop.svg" alt="Railshop" className="h-5 brightness-0 invert" />
-          <div className="w-px h-5 bg-border-2 flex-shrink-0" />
-          <Link to="/admin" className="font-mono text-[10px] text-text-3 hover:text-text-2 transition-colors tracking-[0.05em]">
-            ← ADMIN
-          </Link>
-          <div className="w-px h-5 bg-border-2 flex-shrink-0" />
-          <span className="text-[13px] font-semibold text-text-2">Users</span>
-          <div className="ml-auto flex items-center gap-4">
-            <span className="font-mono text-[10px] text-text-3">{user?.email}</span>
-            <button onClick={logout} className="font-mono text-[10px] text-text-3 hover:text-text-2 transition-colors">
-              LOGOUT
-            </button>
-          </div>
-        </div>
-      </div>
+    <>
+      <AdminBreadcrumb items={[
+        { label: 'Railshop' },
+        { label: 'Manage Users' },
+      ]} />
 
-      <div className="max-w-[1200px] mx-auto px-6 py-7">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-xl font-bold text-text-2">User Management</h1>
-          {!showCreate && (
-            <button
-              onClick={() => setShowCreate(true)}
-              className="font-mono text-[10px] tracking-[0.05em] px-4 py-2 rounded-lg border text-blue border-blue-border bg-blue-glow hover:bg-blue/10 transition-colors"
-            >
-              + ADD USER
-            </button>
-          )}
-        </div>
-
-        {showCreate && (
-          <UserForm
-            title="New User"
-            clients={clients}
-            passwordRequired
-            submitLabel="CREATE USER"
-            submittingLabel="CREATING…"
-            onSubmit={handleCreate}
-            onCancel={() => setShowCreate(false)}
-          />
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl font-bold text-text-2">Manage Users</h1>
+        {!showCreate && (
+          <Button variant="outline" onClick={() => setShowCreate(true)}>
+            + Add User
+          </Button>
         )}
-
-        {renderSection('Admins', admins)}
-        {renderSection('Client Users', clientUsers)}
       </div>
-    </div>
+
+      {showCreate && (
+        <UserForm
+          title="New User"
+          clients={clients}
+          passwordRequired
+          submitLabel="Create User"
+          submittingLabel="Creating..."
+          onSubmit={handleCreate}
+          onCancel={() => setShowCreate(false)}
+        />
+      )}
+
+      {renderSection('Admins', admins)}
+      {renderSection('Users', clientUsers)}
+    </>
   );
 }

@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useReport } from '@/hooks/useReport';
+import { apiFetch } from '@/lib/api';
 import { Topbar } from '@/components/dashboard/Topbar';
 import { TabNav } from '@/components/dashboard/TabNav';
 import { MonthPicker } from '@/components/dashboard/MonthPicker';
@@ -39,8 +40,27 @@ const TAB_ORDER: string[] = ['overview', 'ga4', 'gsc', 'lsa', 'google_ads', 'met
 export function DashboardPage() {
   const { clientSlug, period } = useParams();
   const navigate = useNavigate();
-  const { report, periods, loading, error } = useReport(clientSlug, period);
+  const { user } = useAuth();
+  const { report, periods, loading, error, refetch } = useReport(clientSlug, period);
   const [activeTab, setActiveTab] = useState('overview');
+  const [publishing, setPublishing] = useState(false);
+
+  const handlePublishToggle = async () => {
+    if (!report) return;
+    setPublishing(true);
+    try {
+      const action = report.period.status === 'published' ? 'unpublish' : 'publish';
+      await apiFetch('/report-publish', {
+        method: 'PUT',
+        body: JSON.stringify({ reportPeriodId: report.period.id, action }),
+      });
+      refetch();
+    } catch {
+      // silent
+    } finally {
+      setPublishing(false);
+    }
+  };
 
   // Build dynamic tabs from available sections
   const tabs = useMemo(() => {
@@ -105,6 +125,37 @@ export function DashboardPage() {
         periodStart={report.period.period_start}
         status={report.period.status}
       />
+      {user?.role === 'admin' && (
+        <div className="bg-surface-2 border-b border-border-v1 print:hidden">
+          <div className="max-w-[1200px] mx-auto px-6 h-[40px] flex items-center gap-3">
+            <span className="font-mono text-[10px] text-text-3 tracking-[0.05em]">
+              {report.period.status === 'draft' ? 'DRAFT' : 'PUBLISHED'}
+            </span>
+            <button
+              onClick={handlePublishToggle}
+              disabled={publishing}
+              className={cn(
+                'font-mono text-[10px] tracking-[0.05em] px-3 py-1 rounded-lg transition-colors disabled:opacity-50',
+                report.period.status === 'draft'
+                  ? 'text-bg bg-blue hover:bg-blue-dim'
+                  : 'text-text-3 border border-border-v1 hover:text-text-2'
+              )}
+            >
+              {publishing
+                ? '...'
+                : report.period.status === 'draft'
+                  ? 'PUBLISH'
+                  : 'UNPUBLISH'}
+            </button>
+            <Link
+              to={`/admin/clients/${clientSlug}`}
+              className="ml-auto font-mono text-[10px] text-text-3 hover:text-text-2 transition-colors tracking-[0.05em]"
+            >
+              CLIENT SETTINGS
+            </Link>
+          </div>
+        </div>
+      )}
       <TabNav tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
 
       <div className="max-w-[1200px] mx-auto px-6 pt-7 pb-20">

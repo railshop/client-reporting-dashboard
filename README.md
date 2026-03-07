@@ -1,73 +1,144 @@
-# React + TypeScript + Vite
+# Railshop Client Reporting Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Multi-client monthly reporting dashboard for Railshop, a digital marketing agency. Dark-themed, data-driven interface for generating, editing, and publishing performance reports across multiple data sources.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Frontend**: React 19 + Vite + TypeScript + Tailwind CSS v4 + shadcn/ui
+- **Backend**: Netlify Functions (serverless)
+- **Database**: Neon PostgreSQL (serverless)
+- **Auth**: Custom JWT (bcrypt + jsonwebtoken)
+- **Validation**: Zod schemas for all JSONB data
+- **AI**: Anthropic Claude API for summary generation
+- **Data Sources**: GA4, Google Search Console, Google Ads, Meta Ads, ServiceTitan, Google Business Profile
 
-## React Compiler
+## Project Structure
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+app/
+  src/
+    components/       # Reusable UI components
+      admin/          # Admin editor components (KpiEditor, TableEditor, etc.)
+      ui/             # shadcn/ui primitives
+    hooks/            # Custom React hooks
+    lib/              # Utilities (api client, utils)
+    pages/            # Route pages
+    shared/schemas/   # Zod schemas shared between frontend + backend
+    types/            # TypeScript type definitions
+  netlify/functions/  # Serverless API endpoints
+    _shared/          # Shared backend utilities
+      pulls/          # Per-source data pull modules
+  sql/                # Database schema + migrations
+  public/             # Static assets
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Getting Started
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Prerequisites
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- Node.js 18+
+- Neon PostgreSQL database
+- Netlify CLI (`npm i -g netlify-cli`)
+
+### Setup
+
+1. Clone and install dependencies:
+   ```bash
+   cd app
+   npm install
+   ```
+
+2. Copy environment variables:
+   ```bash
+   cp .env.example .env
+   ```
+
+3. Configure `.env`:
+   ```
+   DATABASE_URL=postgresql://user:pass@ep-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require
+   JWT_SECRET=your-secret-key-here-min-32-chars
+   ENCRYPTION_MASTER_KEY=<64 hex chars - generate with: openssl rand -hex 32>
+   ANTHROPIC_API_KEY=<your Anthropic API key>
+   ```
+
+4. Run database schema:
+   ```bash
+   psql $DATABASE_URL -f sql/schema.sql
+   ```
+
+5. Run migrations (if upgrading from an earlier version):
+   ```bash
+   psql $DATABASE_URL -f sql/migrations/001-client-updated-at.sql
+   ```
+
+6. Seed initial data (optional — update password hashes first):
+   ```bash
+   psql $DATABASE_URL -f sql/seed.sql
+   ```
+
+7. Start development server:
+   ```bash
+   netlify dev
+   ```
+
+### Optional Env Vars (for data pulling)
+
+| Variable | Required For |
+|----------|-------------|
+| `GOOGLE_ADS_CLIENT_ID` | Google Ads API pulls |
+| `GOOGLE_ADS_CLIENT_SECRET` | Google Ads API pulls |
+
+## Features
+
+### Client Dashboard
+- Monthly performance reports with KPI cards, data tables, and trend indicators
+- Dynamic tabs per data source (GA4, GSC, Google Ads, Meta, LSA, ServiceTitan, GBP)
+- Overview with executive summary, hero stats, and platform cards
+- Railshop notes and next priorities per section
+
+### Admin Panel
+- **Client Management**: Edit client details, toggle data sources, manage encrypted API credentials
+- **Report CRUD**: Create, edit, and publish monthly reports with full section editors
+- **Data Pulling**: One-click automated data pull from all configured sources (GA4, GSC, Google Ads, Meta, ServiceTitan, GBP)
+- **AI Summaries**: Generate professional analysis summaries using Claude API with optional context prompts
+- **User Management**: Create/edit admin and client users with role-based access
+- **Draft/Published Workflow**: Draft reports visible only to admins; publish when ready for clients
+
+### Security
+- AES-256-GCM encryption for all stored API credentials
+- JWT authentication with role-based access control
+- Client users see only published reports for their assigned client
+- Zod validation at all API boundaries
+
+## API Endpoints
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/auth-login` | Public | Login, returns JWT |
+| GET | `/auth-me` | Any | Current user info |
+| GET | `/clients-list` | Any | List clients (filtered by role) |
+| GET | `/client-get` | Admin | Client details + sources |
+| PUT | `/client-update` | Admin | Update client name/logo/active |
+| PUT | `/client-sources-update` | Admin | Upsert source credentials |
+| GET | `/report-periods` | Any | List report periods (draft-filtered for clients) |
+| GET | `/report-get` | Any | Get full report (draft-filtered for clients) |
+| POST | `/report-create` | Admin | Create draft report period |
+| PUT | `/report-update` | Admin | Update overview/notes/priorities |
+| PUT | `/report-section-upsert` | Admin | Upsert section data |
+| PUT | `/report-campaign-upsert` | Admin | Bulk upsert campaign metrics |
+| PUT | `/report-publish` | Admin | Publish/unpublish report |
+| POST | `/report-generate` | Admin | Pull data from all active sources |
+| POST | `/ai-generate-summary` | Admin | Generate AI summary from section data |
+| GET | `/admin-users-list` | Admin | List all users |
+| POST | `/admin-users-create` | Admin | Create user |
+| PUT | `/admin-users-update` | Admin | Update user |
+| DELETE | `/admin-users-delete` | Admin | Delete user |
+
+## Build
+
+```bash
+npm run build     # Production build
+npm run dev       # Vite dev server (no functions)
+netlify dev       # Full dev with functions
+npx tsc --noEmit  # Type check
 ```

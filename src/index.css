@@ -48,6 +48,16 @@
   --input: var(--border-2);
   --ring: var(--blue);
   --radius: 0.6875rem;
+
+  /* Sidebar tokens */
+  --sidebar-background: var(--surface);
+  --sidebar-foreground: var(--text);
+  --sidebar-primary: var(--blue);
+  --sidebar-primary-foreground: var(--bg);
+  --sidebar-accent: var(--surface-3);
+  --sidebar-accent-foreground: var(--text);
+  --sidebar-border: var(--border-v1);
+  --sidebar-ring: var(--blue);
 }
 
 /* ── Print / Light Override ── */
@@ -129,6 +139,16 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  /* Sidebar color tokens */
+  --color-sidebar-background: var(--sidebar-background);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
 
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);

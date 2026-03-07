@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ChevronsUpDown, Plus } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import {
@@ -27,6 +27,7 @@ interface ClientOption {
 export function ClientSwitcher({ activeSlug }: { activeSlug: string | undefined }) {
   const { isMobile } = useSidebar();
   const navigate = useNavigate();
+  const location = useLocation();
   const [clients, setClients] = useState<ClientOption[]>([]);
 
   useEffect(() => {
@@ -72,7 +73,12 @@ export function ClientSwitcher({ activeSlug }: { activeSlug: string | undefined 
               {clients.map((client) => (
                 <DropdownMenuItem
                   key={client.slug}
-                  onClick={() => navigate(`/admin/clients/${client.slug}/profile`)}
+                  onClick={() => {
+                    const segments = location.pathname.split('/');
+                    // pathname: /admin/clients/:slug/:tab[/:sub]
+                    const tab = segments[4] || 'profile';
+                    navigate(`/admin/clients/${client.slug}/${tab}`);
+                  }}
                   className="gap-2 p-2"
                 >
                   <div className="flex size-6 items-center justify-center rounded-sm border">

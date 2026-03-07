@@ -1,7 +1,9 @@
 import { GoogleAdsApi } from 'google-ads-api';
 import { getDateRange, getPreviousDateRange, formatNumber, formatPercent, calcDelta } from '../data-pull-utils';
+import type { SourceFilter } from '../../../../src/shared/schemas/filters';
 
 interface GoogleAdsResult {
+  raw: Record<string, any>;
   kpis: any[];
   tables: Record<string, any>;
   campaigns: any[];
@@ -9,7 +11,8 @@ interface GoogleAdsResult {
 
 export async function pullGoogleAds(
   credentials: Record<string, string>,
-  periodStart: string
+  periodStart: string,
+  filters?: SourceFilter[]
 ): Promise<GoogleAdsResult> {
   const { developer_token, refresh_token, customer_id, manager_account_id } = credentials;
   const { startDate, endDate } = getDateRange(periodStart);
@@ -27,6 +30,14 @@ export async function pullGoogleAds(
     refresh_token,
   });
 
+  // Build campaign filter clause
+  const campaignFilterIds = filters
+    ?.filter((f) => f.filter_type === 'campaign' && f.active)
+    .map((f) => f.filter_value);
+  const campaignFilterClause = campaignFilterIds && campaignFilterIds.length > 0
+    ? `AND campaign.id IN (${campaignFilterIds.join(', ')})`
+    : '';
+
   // Campaign performance for current period
   const campaignRows = await customer.query(`
     SELECT
@@ -42,6 +53,7 @@ export async function pullGoogleAds(
     FROM campaign
     WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
       AND campaign.status = 'ENABLED'
+      ${campaignFilterClause}
     ORDER BY metrics.cost_micros DESC
   `);
 
@@ -84,6 +96,7 @@ export async function pullGoogleAds(
     FROM campaign
     WHERE segments.date BETWEEN '${prev.startDate}' AND '${prev.endDate}'
       AND campaign.status = 'ENABLED'
+      ${campaignFilterClause}
   `);
 
   let prevImpressions = 0, prevClicks = 0, prevConversions = 0, prevCost = 0;
@@ -105,5 +118,37 @@ export async function pullGoogleAds(
     { label: 'Cost/Conv', value: '$' + (totalConversions > 0 ? (totalSpend / totalConversions).toFixed(2) : '0.00'), ...calcDelta(prevConversions > 0 ? prevCost / prevConversions : 0, totalConversions > 0 ? totalCostMicros / totalConversions : 0), color: 'default' as const },
   ];
 
-  return { kpis, tables: {}, campaigns };
+  return {
+    raw: {
+      current: {
+        impressions: totalImpressions,
+        clicks: totalClicks,
+        conversions: totalConversions,
+        costMicros: totalCostMicros,
+        spend: totalSpend,
+        ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
+        costPerConversion: totalConversions > 0 ? totalSpend / totalConversions : 0,
+      },
+      previous: {
+        impressions: prevImpressions,
+        clicks: prevClicks,
+        conversions: prevConversions,
+        costMicros: prevCost,
+        spend: prevCost / 1_000_000,
+        ctr: prevImpressions > 0 ? (prevClicks / prevImpressions) * 100 : 0,
+        costPerConversion: prevConversions > 0 ? (prevCost / 1_000_000) / prevConversions : 0,
+      },
+      campaigns: campaignRows.map((r: any) => ({
+        name: r.campaign.name,
+        channelType: r.campaign.advertising_channel_type || 'UNKNOWN',
+        impressions: Number(r.metrics.impressions || 0),
+        clicks: Number(r.metrics.clicks || 0),
+        conversions: Number(r.metrics.conversions || 0),
+        costMicros: Number(r.metrics.cost_micros || 0),
+      })),
+    },
+    kpis,
+    tables: {},
+    campaigns,
+  };
 }

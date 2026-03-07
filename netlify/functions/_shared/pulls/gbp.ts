@@ -3,6 +3,7 @@ import { GoogleAuth } from 'google-auth-library';
 import { getDateRange, getPreviousDateRange, formatNumber, calcDelta } from '../data-pull-utils';
 
 interface GBPResult {
+  raw: Record<string, any>;
   kpis: any[];
   tables: Record<string, any>;
 }
@@ -97,5 +98,26 @@ export async function pullGBP(
     { label: 'Direction Requests', value: formatNumber(directions), ...calcDelta(directions, prevDirections), color: 'default' as const },
   ];
 
-  return { kpis, tables: {} };
+  return {
+    raw: {
+      current: {
+        mapsImpressions,
+        searchImpressions,
+        totalImpressions,
+        calls,
+        websiteClicks,
+        directions,
+      },
+      previous: {
+        mapsImpressions: prevMaps,
+        searchImpressions: prevSearch,
+        totalImpressions: prevTotal,
+        calls: prevCalls,
+        websiteClicks: prevWebsite,
+        directions: prevDirections,
+      },
+    },
+    kpis,
+    tables: {},
+  };
 }

@@ -1,6 +1,7 @@
 import { sql } from './db';
 import { decrypt } from './crypto';
 import { credentialSchemaMap, type SourceType } from '../../../src/shared/schemas/credentials';
+import type { SourceFilter } from '../../../src/shared/schemas/filters';
 
 export async function getDecryptedCredentials(clientSlug: string, source: SourceType) {
   const rows = await sql`
@@ -21,6 +22,17 @@ export async function getDecryptedCredentials(clientSlug: string, source: Source
   if (!parsed.success) return null;
 
   return parsed.data as Record<string, string>;
+}
+
+export async function getSourceFilters(clientSlug: string, source: SourceType): Promise<SourceFilter[]> {
+  const rows = await sql`
+    SELECT sf.id, sf.data_source_id, sf.filter_type, sf.filter_value, sf.label, sf.active
+    FROM source_filters sf
+    JOIN client_data_sources cds ON sf.data_source_id = cds.id
+    JOIN clients c ON cds.client_id = c.id
+    WHERE c.slug = ${clientSlug} AND cds.source = ${source} AND sf.active = true
+  `;
+  return rows as unknown as SourceFilter[];
 }
 
 export function getDateRange(periodStart: string): { startDate: string; endDate: string } {

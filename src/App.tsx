@@ -6,7 +6,7 @@ import { LoginPage } from '@/pages/Login';
 import { DashboardPage } from '@/pages/Dashboard';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { AdminHomePage } from '@/pages/AdminHome';
-import { AdminUsersPage } from '@/pages/AdminUsers';
+import { AdminClientUsersPage } from '@/pages/AdminClientUsers';
 import { AdminClientProfilePage } from '@/pages/AdminClientProfile';
 import { AdminClientIntegrationsPage } from '@/pages/AdminClientIntegrations';
 import { AdminReportsListPage } from '@/pages/AdminReportsList';
@@ -42,10 +42,10 @@ export default function App() {
             }
           >
             <Route index element={<AdminHomePage />} />
-            <Route path="users" element={<AdminUsersPage />} />
             <Route path="clients/:clientSlug" element={<Navigate to="profile" replace />} />
             <Route path="clients/:clientSlug/profile" element={<AdminClientProfilePage />} />
             <Route path="clients/:clientSlug/integrations" element={<AdminClientIntegrationsPage />} />
+            <Route path="clients/:clientSlug/users" element={<AdminClientUsersPage />} />
             <Route path="clients/:clientSlug/reports" element={<AdminReportsListPage />} />
             <Route path="clients/:clientSlug/reports/:period" element={<AdminReportEditPage />} />
           </Route>

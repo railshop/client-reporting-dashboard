@@ -1,8 +1,10 @@
 import { getDateRange, getPreviousDateRange, formatNumber, calcDelta } from '../data-pull-utils';
+import type { SourceFilter } from '../../../../src/shared/schemas/filters';
 
 const ST_BASE = 'https://api.servicetitan.io';
 
 interface STResult {
+  raw: Record<string, any>;
   kpis: any[];
   tables: Record<string, any>;
 }
@@ -38,7 +40,8 @@ async function getAccessToken(clientId: string, clientSecret: string): Promise<s
 
 export async function pullServiceTitan(
   credentials: Record<string, string>,
-  periodStart: string
+  periodStart: string,
+  filters?: SourceFilter[]
 ): Promise<STResult> {
   const { api_key, tenant_id, client_id, client_secret } = credentials;
   const { startDate, endDate } = getDateRange(periodStart);
@@ -57,8 +60,17 @@ export async function pullServiceTitan(
     api_key, tenant_id, accessToken
   );
 
-  const jobs = jobsData.data || [];
-  const prevJobs = prevJobsData.data || [];
+  let jobs = jobsData.data || [];
+  let prevJobs = prevJobsData.data || [];
+
+  // Filter by campaign IDs if filters are set
+  const campaignFilterIds = filters
+    ?.filter((f) => f.filter_type === 'campaign' && f.active)
+    .map((f) => f.filter_value);
+  if (campaignFilterIds && campaignFilterIds.length > 0) {
+    jobs = jobs.filter((j: any) => campaignFilterIds.includes(String(j.campaignId || j.campaign?.id)));
+    prevJobs = prevJobs.filter((j: any) => campaignFilterIds.includes(String(j.campaignId || j.campaign?.id)));
+  }
 
   const totalJobs = jobs.length;
   const prevTotalJobs = prevJobs.length;
@@ -92,6 +104,25 @@ export async function pullServiceTitan(
     }));
 
   return {
+    raw: {
+      current: {
+        totalJobs,
+        completedJobs,
+        totalRevenue,
+        avgTicket: totalJobs > 0 ? totalRevenue / totalJobs : 0,
+      },
+      previous: {
+        totalJobs: prevTotalJobs,
+        completedJobs: prevCompleted,
+        totalRevenue: prevRevenue,
+        avgTicket: prevTotalJobs > 0 ? prevRevenue / prevTotalJobs : 0,
+      },
+      jobsByType: Object.entries(typeMap).map(([type, data]) => ({
+        type,
+        count: data.count,
+        revenue: data.revenue,
+      })),
+    },
     kpis,
     tables: {
       jobSummary: {

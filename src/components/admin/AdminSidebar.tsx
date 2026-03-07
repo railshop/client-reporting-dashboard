@@ -2,6 +2,7 @@ import { useParams, useLocation, Link } from 'react-router-dom';
 import {
   UserCircle,
   Plug,
+  Users,
   FileText,
   ExternalLink,
 } from 'lucide-react';
@@ -11,7 +12,6 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -39,57 +39,56 @@ export function AdminSidebar() {
 
       <SidebarContent>
         {clientSlug && (
-          <>
-            <SidebarGroup>
-              <SidebarGroupLabel>Settings</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      render={<Link to={`/admin/clients/${clientSlug}/profile`} />}
-                      isActive={isActive(`/admin/clients/${clientSlug}/profile`)}
-                    >
-                      <UserCircle className="size-4" />
-                      <span>Profile</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      render={<Link to={`/admin/clients/${clientSlug}/integrations`} />}
-                      isActive={isActive(`/admin/clients/${clientSlug}/integrations`)}
-                    >
-                      <Plug className="size-4" />
-                      <span>Integrations</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-
-            <SidebarGroup>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      render={<Link to={`/admin/clients/${clientSlug}/reports`} />}
-                      isActive={location.pathname.startsWith(`/admin/clients/${clientSlug}/reports`)}
-                    >
-                      <FileText className="size-4" />
-                      <span>Reports</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      render={<a href={`/${clientSlug}`} target="_blank" rel="noopener noreferrer" />}
-                    >
-                      <ExternalLink className="size-4" />
-                      <span>View As Client</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={<Link to={`/admin/clients/${clientSlug}/profile`} />}
+                    isActive={isActive(`/admin/clients/${clientSlug}/profile`)}
+                  >
+                    <UserCircle className="size-4" />
+                    <span>Profile</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={<Link to={`/admin/clients/${clientSlug}/integrations`} />}
+                    isActive={isActive(`/admin/clients/${clientSlug}/integrations`)}
+                  >
+                    <Plug className="size-4" />
+                    <span>Integrations</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={<Link to={`/admin/clients/${clientSlug}/users`} />}
+                    isActive={isActive(`/admin/clients/${clientSlug}/users`)}
+                  >
+                    <Users className="size-4" />
+                    <span>Users</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={<Link to={`/admin/clients/${clientSlug}/reports`} />}
+                    isActive={location.pathname.startsWith(`/admin/clients/${clientSlug}/reports`)}
+                  >
+                    <FileText className="size-4" />
+                    <span>Reports</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={<a href={`/${clientSlug}`} target="_blank" rel="noopener noreferrer" />}
+                  >
+                    <ExternalLink className="size-4" />
+                    <span>View As Client</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
         )}
       </SidebarContent>
 

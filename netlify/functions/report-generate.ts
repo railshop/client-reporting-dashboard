@@ -6,26 +6,10 @@ import {
   forbidden,
   jsonResponse,
 } from './_shared/auth-middleware';
-import { getDecryptedCredentials } from './_shared/data-pull-utils';
-import { pullGA4 } from './_shared/pulls/ga4';
-import { pullGSC } from './_shared/pulls/gsc';
-import { pullGoogleAds } from './_shared/pulls/google-ads';
-import { pullMeta } from './_shared/pulls/meta';
-import { pullServiceTitan } from './_shared/pulls/servicetitan';
-import { pullGBP } from './_shared/pulls/gbp';
+import { transformRawData } from './_shared/transforms';
 import type { Context } from '@netlify/functions';
 
 type SourceType = 'ga4' | 'gsc' | 'google_ads' | 'meta' | 'lsa' | 'servicetitan' | 'gbp';
-
-const pullFunctions: Partial<Record<SourceType, (creds: Record<string, string>, periodStart: string) => Promise<any>>> = {
-  ga4: pullGA4,
-  gsc: pullGSC,
-  google_ads: pullGoogleAds,
-  meta: pullMeta,
-  servicetitan: pullServiceTitan,
-  gbp: pullGBP,
-  // lsa: no API — manual only
-};
 
 export default async (request: Request, _context: Context) => {
   if (request.method !== 'POST') {
@@ -72,31 +56,29 @@ export default async (request: Request, _context: Context) => {
     reportPeriod = created[0];
   }
 
-  // Get active configured sources for this client
-  const sources = await sql`
-    SELECT source, config
-    FROM client_data_sources
-    WHERE client_id = ${clientId} AND active = true
+  // Read raw_ingestions for this client + period
+  const ingestions = await sql`
+    SELECT source, raw_data
+    FROM raw_ingestions
+    WHERE client_id = ${clientId} AND period_start = ${periodStart}
   `;
+
+  if (ingestions.length === 0) {
+    return jsonResponse({ error: 'No ingested data found. Run data ingestion first.' }, 400);
+  }
 
   const results: Record<string, { status: string; error?: string }> = {};
 
-  for (const src of sources) {
-    const source = src.source as SourceType;
-    const pullFn = pullFunctions[source];
-    if (!pullFn) {
-      results[source] = { status: 'skipped', error: 'No API pull available' };
-      continue;
-    }
+  for (const ingestion of ingestions) {
+    const source = ingestion.source as SourceType;
+    const rawData = ingestion.raw_data;
 
     try {
-      const creds = await getDecryptedCredentials(clientSlug, source);
-      if (!creds) {
-        results[source] = { status: 'skipped', error: 'No credentials configured' };
+      const data = transformRawData(source, rawData);
+      if (!data) {
+        results[source] = { status: 'skipped', error: 'No transform available' };
         continue;
       }
-
-      const data = await pullFn(creds, periodStart);
 
       // Upsert section
       const sectionResult = await sql`

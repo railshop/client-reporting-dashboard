@@ -8,8 +8,11 @@ import { KpiEditor } from '@/components/admin/KpiEditor';
 import { TableEditor } from '@/components/admin/TableEditor';
 import { PriorityEditor } from '@/components/admin/PriorityEditor';
 import { NotesEditor } from '@/components/admin/NotesEditor';
+import { RawDataViewer } from '@/components/admin/RawDataViewer';
+import { CsvUploadPanel } from '@/components/admin/CsvUploadPanel';
 import { AdminBreadcrumb } from '@/components/admin/AdminBreadcrumb';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { KpiItem, TableDef, Overview } from '@/shared/schemas/common';
 import type { ReportSection } from '@/types/report';
@@ -19,6 +22,215 @@ const INPUT_CLS =
 const LABEL_CLS = 'block font-mono text-[10px] text-text-3 mb-1.5 tracking-[0.05em]';
 
 const ALL_SOURCES: SourceType[] = ['ga4', 'gsc', 'google_ads', 'meta', 'lsa', 'servicetitan', 'gbp'];
+
+interface RawIngestion {
+  id: string;
+  source: string;
+  raw_data: Record<string, any>;
+  metadata: Record<string, any>;
+  created_at: string;
+}
+
+// ── Data Ingestion Panel ──
+
+function IngestionPanel({
+  clientSlug,
+  periodStart,
+}: {
+  clientSlug: string;
+  periodStart: string;
+}) {
+  const [ingesting, setIngesting] = useState(false);
+  const [ingestions, setIngestions] = useState<RawIngestion[]>([]);
+  const [loadingIngestions, setLoadingIngestions] = useState(true);
+  const [results, setResults] = useState<Record<string, { status: string; error?: string }> | null>(null);
+  const [expanded, setExpanded] = useState(false);
+
+  const loadIngestions = () => {
+    setLoadingIngestions(true);
+    apiFetch<{ ingestions: RawIngestion[] }>(
+      `/raw-ingestions-list?clientSlug=${clientSlug}&periodStart=${periodStart}`
+    )
+      .then((res) => setIngestions(res.ingestions))
+      .catch(() => setIngestions([]))
+      .finally(() => setLoadingIngestions(false));
+  };
+
+  useEffect(() => {
+    loadIngestions();
+  }, [clientSlug, periodStart]);
+
+  const handlePullData = async () => {
+    setIngesting(true);
+    setResults(null);
+    try {
+      const res = await apiFetch<{ results: Record<string, { status: string; error?: string }> }>(
+        '/data-ingest',
+        {
+          method: 'POST',
+          body: JSON.stringify({ clientSlug, periodStart }),
+        }
+      );
+      setResults(res.results);
+      loadIngestions();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Ingestion failed');
+    } finally {
+      setIngesting(false);
+    }
+  };
+
+  return (
+    <div className="bg-surface border border-border-v1 rounded-[11px] px-6 py-5 mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <div className="text-[11px] font-semibold text-text-3 uppercase tracking-[0.08em]">
+          Data Ingestion
+        </div>
+        <div className="flex items-center gap-2">
+          {ingestions.length > 0 && (
+            <Badge variant="secondary" className="text-[10px]">
+              {ingestions.length} source{ingestions.length !== 1 ? 's' : ''} ingested
+            </Badge>
+          )}
+          <CsvUploadPanel
+            clientSlug={clientSlug}
+            periodStart={periodStart}
+            onUploaded={loadIngestions}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePullData}
+            disabled={ingesting}
+          >
+            {ingesting ? 'Pulling...' : 'Pull Data'}
+          </Button>
+        </div>
+      </div>
+
+      {/* Pull results */}
+      {results && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mb-4">
+          {Object.entries(results).map(([source, result]) => (
+            <div
+              key={source}
+              className={cn(
+                'rounded-lg px-3 py-2 text-[11px] border',
+                result.status === 'success'
+                  ? 'bg-v1-green/10 border-v1-green/20 text-v1-green'
+                  : result.status === 'error'
+                    ? 'bg-red/10 border-red/20 text-red'
+                    : 'bg-surface-2 border-border-v1 text-text-3'
+              )}
+            >
+              <div className="font-semibold">{SOURCE_LABELS[source as SourceType] || source}</div>
+              <div className="text-[10px] mt-0.5">
+                {result.status === 'success' ? 'Pulled' : result.status === 'error' ? result.error : 'Skipped'}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Raw data viewer toggle */}
+      {ingestions.length > 0 && (
+        <>
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            className="font-mono text-[10px] text-blue hover:text-blue-dim transition-colors"
+          >
+            {expanded ? 'HIDE RAW DATA ▾' : 'VIEW RAW DATA ▸'}
+          </button>
+          {expanded && !loadingIngestions && (
+            <div className="mt-3">
+              <RawDataViewer ingestions={ingestions} />
+            </div>
+          )}
+        </>
+      )}
+
+      {loadingIngestions && ingestions.length === 0 && (
+        <div className="text-sm text-muted-foreground animate-pulse">Loading ingestion data...</div>
+      )}
+    </div>
+  );
+}
+
+// ── AI Report Generation Panel ──
+
+function AIGeneratePanel({
+  clientSlug,
+  periodStart,
+  onGenerated,
+}: {
+  clientSlug: string;
+  periodStart: string;
+  onGenerated: () => void;
+}) {
+  const [generating, setGenerating] = useState(false);
+  const [prompt, setPrompt] = useState('');
+  const [showPrompt, setShowPrompt] = useState(false);
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      await apiFetch('/report-generate-ai', {
+        method: 'POST',
+        body: JSON.stringify({
+          clientSlug,
+          periodStart,
+          prompt: prompt || undefined,
+        }),
+      });
+      setShowPrompt(false);
+      setPrompt('');
+      onGenerated();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'AI generation failed');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <div className="bg-surface border border-border-v1 rounded-[11px] px-6 py-5 mb-6">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-[11px] font-semibold text-text-3 uppercase tracking-[0.08em]">
+          AI Report Generation
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowPrompt(!showPrompt)}
+          className="font-mono text-[9px] text-blue hover:text-blue-dim transition-colors"
+        >
+          {showPrompt ? 'CANCEL' : 'ADD GUIDANCE'}
+        </button>
+      </div>
+
+      <p className="text-[12px] text-muted-foreground mb-3">
+        Generate a complete report from ingested raw data using AI. This will create the overview, all section KPIs, tables, notes, and priorities.
+      </p>
+
+      {showPrompt && (
+        <textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          rows={2}
+          className={INPUT_CLS + ' resize-y mb-3'}
+          placeholder="Optional guidance (e.g. 'Focus on lead generation performance', 'Highlight the Meta spend increase')..."
+        />
+      )}
+
+      <Button
+        onClick={handleGenerate}
+        disabled={generating}
+      >
+        {generating ? 'Generating with AI...' : 'Generate Report with AI'}
+      </Button>
+    </div>
+  );
+}
 
 // ── Overview Editor ──
 
@@ -259,6 +471,9 @@ function SectionEditor({
   const [notes, setNotes] = useState(section?.railshop_notes ?? '');
   const [priorities, setPriorities] = useState<string[]>(section?.next_priorities ?? []);
   const [saving, setSaving] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenPrompt, setRegenPrompt] = useState('');
+  const [showRegenPrompt, setShowRegenPrompt] = useState(false);
 
   useEffect(() => {
     setKpis(section?.kpis ?? []);
@@ -266,6 +481,27 @@ function SectionEditor({
     setNotes(section?.railshop_notes ?? '');
     setPriorities(section?.next_priorities ?? []);
   }, [section]);
+
+  const handleRegenerate = async () => {
+    setRegenerating(true);
+    try {
+      await apiFetch('/report-regenerate-section', {
+        method: 'POST',
+        body: JSON.stringify({
+          reportPeriodId,
+          source,
+          prompt: regenPrompt || undefined,
+        }),
+      });
+      setShowRegenPrompt(false);
+      setRegenPrompt('');
+      onSaved();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Regeneration failed');
+    } finally {
+      setRegenerating(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -384,9 +620,38 @@ function SectionEditor({
             <PriorityEditor priorities={priorities} onChange={setPriorities} />
           </div>
 
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving...' : `Save ${SOURCE_LABELS[source]}`}
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? 'Saving...' : `Save ${SOURCE_LABELS[source]}`}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowRegenPrompt(!showRegenPrompt)}
+              disabled={regenerating}
+            >
+              {regenerating ? 'Regenerating...' : 'Regenerate with AI'}
+            </Button>
+          </div>
+
+          {showRegenPrompt && (
+            <div className="mt-3 flex gap-2">
+              <input
+                value={regenPrompt}
+                onChange={(e) => setRegenPrompt(e.target.value)}
+                className={INPUT_CLS}
+                placeholder="Optional guidance (e.g. 'Focus on conversion trends')..."
+              />
+              <Button
+                size="sm"
+                onClick={handleRegenerate}
+                disabled={regenerating}
+                className="shrink-0"
+              >
+                {regenerating ? 'Working...' : 'Regenerate'}
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -486,10 +751,23 @@ export function AdminReportEditPage() {
             onClick={handleGenerate}
             disabled={generating}
           >
-            {generating ? 'Generating...' : 'Generate Report'}
+            {generating ? 'Generating...' : 'Generate (Mechanical)'}
           </Button>
         </div>
       </div>
+
+      {/* Data Ingestion */}
+      <IngestionPanel
+        clientSlug={clientSlug!}
+        periodStart={`${period}-01`}
+      />
+
+      {/* AI Report Generation */}
+      <AIGeneratePanel
+        clientSlug={clientSlug!}
+        periodStart={`${period}-01`}
+        onGenerated={refetch}
+      />
 
       {/* Overview */}
       <OverviewEditor

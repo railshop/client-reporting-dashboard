@@ -1,12 +1,9 @@
-import { useNavigate } from 'react-router-dom';
-import { ChevronsUpDown, LogOut, Users, User } from 'lucide-react';
+import { ChevronsUpDown, LogOut, User } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -18,7 +15,6 @@ import {
 export function UserMenu() {
   const { user, logout } = useAuth();
   const { isMobile } = useSidebar();
-  const navigate = useNavigate();
 
   if (!user) return null;
 
@@ -42,13 +38,6 @@ export function UserMenu() {
             align="end"
             sideOffset={4}
           >
-            <DropdownMenuGroup>
-              <DropdownMenuItem onClick={() => navigate('/admin/users')}>
-                <Users className="mr-2 size-4" />
-                Manage Users
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={logout}>
               <LogOut className="mr-2 size-4" />
               Log Out

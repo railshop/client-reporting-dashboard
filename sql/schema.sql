@@ -47,6 +47,36 @@ CREATE TABLE client_data_sources (
 );
 
 -- ============================================================
+-- SOURCE FILTERS (campaign/entity selection per data source)
+-- ============================================================
+
+CREATE TABLE source_filters (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  data_source_id  UUID NOT NULL REFERENCES client_data_sources(id) ON DELETE CASCADE,
+  filter_type     TEXT NOT NULL,
+  filter_value    TEXT NOT NULL,
+  label           TEXT,
+  active          BOOLEAN DEFAULT true,
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(data_source_id, filter_type, filter_value)
+);
+
+-- ============================================================
+-- RAW INGESTIONS (SSOT — immutable API data per source per month)
+-- ============================================================
+
+CREATE TABLE raw_ingestions (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id       UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  source          source_type NOT NULL,
+  period_start    DATE NOT NULL,
+  raw_data        JSONB NOT NULL,
+  metadata        JSONB DEFAULT '{}',
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(client_id, source, period_start)
+);
+
+-- ============================================================
 -- REPORT PERIODS (one per client per month)
 -- ============================================================
 
@@ -106,3 +136,6 @@ CREATE INDEX idx_report_periods_lookup ON report_periods(client_id, period_start
 CREATE INDEX idx_report_sections_period ON report_sections(report_period_id);
 CREATE INDEX idx_campaign_metrics_section ON campaign_metrics(report_section_id);
 CREATE INDEX idx_client_data_sources_client ON client_data_sources(client_id);
+CREATE INDEX idx_source_filters_ds ON source_filters(data_source_id);
+CREATE INDEX idx_raw_ingestions_lookup ON raw_ingestions(client_id, source, period_start);
+CREATE INDEX idx_raw_ingestions_client_period ON raw_ingestions(client_id, period_start);

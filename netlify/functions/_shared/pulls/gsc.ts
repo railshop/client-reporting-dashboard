@@ -3,6 +3,7 @@ import { GoogleAuth } from 'google-auth-library';
 import { getDateRange, getPreviousDateRange, formatNumber, formatPercent, calcDelta } from '../data-pull-utils';
 
 interface GSCResult {
+  raw: Record<string, any>;
   kpis: any[];
   tables: Record<string, any>;
 }
@@ -81,6 +82,22 @@ export async function pullGSC(
   }));
 
   return {
+    raw: {
+      current: {
+        clicks: cur.clicks || 0,
+        impressions: cur.impressions || 0,
+        ctr: cur.ctr || 0,
+        position: cur.position || 0,
+      },
+      previous: {
+        clicks: prv.clicks || 0,
+        impressions: prv.impressions || 0,
+        ctr: prv.ctr || 0,
+        position: prv.position || 0,
+      },
+      topQueries: queryRows,
+      topPages: pageRows,
+    },
     kpis,
     tables: {
       topQueries: {

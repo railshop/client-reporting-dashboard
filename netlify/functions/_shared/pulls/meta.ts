@@ -1,9 +1,11 @@
 import { getDateRange, getPreviousDateRange, formatNumber, formatPercent, calcDelta } from '../data-pull-utils';
+import type { SourceFilter } from '../../../../src/shared/schemas/filters';
 
 const META_API_VERSION = 'v21.0';
 const META_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
 
 interface MetaResult {
+  raw: Record<string, any>;
   kpis: any[];
   tables: Record<string, any>;
   campaigns: any[];
@@ -22,7 +24,8 @@ async function metaFetch(path: string, token: string) {
 
 export async function pullMeta(
   credentials: Record<string, string>,
-  periodStart: string
+  periodStart: string,
+  filters?: SourceFilter[]
 ): Promise<MetaResult> {
   const { access_token, ad_account_id } = credentials;
   const acctId = ad_account_id.startsWith('act_') ? ad_account_id : `act_${ad_account_id}`;
@@ -65,12 +68,29 @@ export async function pullMeta(
   ];
 
   // Campaign-level data
+  const campaignFilterIds = filters
+    ?.filter((f) => f.filter_type === 'campaign' && f.active)
+    .map((f) => f.filter_value);
+
+  let campaignFilterParam = '';
+  if (campaignFilterIds && campaignFilterIds.length > 0) {
+    const filterJson = JSON.stringify(campaignFilterIds.map((id) => ({ field: 'campaign.id', operator: 'IN', value: [id] })));
+    campaignFilterParam = `&filtering=${encodeURIComponent(filterJson)}`;
+  }
+
   const campaignInsights = await metaFetch(
-    `/${acctId}/insights?fields=campaign_name,impressions,clicks,ctr,reach,frequency,spend,actions&level=campaign&time_range={"since":"${startDate}","until":"${endDate}"}&limit=50`,
+    `/${acctId}/insights?fields=campaign_name,campaign_id,impressions,clicks,ctr,reach,frequency,spend,actions&level=campaign&time_range={"since":"${startDate}","until":"${endDate}"}&limit=50${campaignFilterParam}`,
     access_token
   );
 
-  const campaigns = (campaignInsights.data || []).map((c: any) => {
+  let campaignData = campaignInsights.data || [];
+
+  // Client-side fallback filter if API filtering didn't work as expected
+  if (campaignFilterIds && campaignFilterIds.length > 0) {
+    campaignData = campaignData.filter((c: any) => campaignFilterIds.includes(c.campaign_id));
+  }
+
+  const campaigns = campaignData.map((c: any) => {
     const leads = getAction(c, 'lead') + getAction(c, 'onsite_conversion.lead_grouped');
     const spend = Number(c.spend || 0);
     return {
@@ -89,5 +109,40 @@ export async function pullMeta(
     };
   });
 
-  return { kpis, tables: {}, campaigns };
+  return {
+    raw: {
+      current: {
+        reach: Number(cur.reach || 0),
+        impressions: Number(cur.impressions || 0),
+        clicks: Number(cur.clicks || 0),
+        ctr: Number(cur.ctr || 0),
+        leads: curLeads,
+        spend: curSpend,
+        cpl: curLeads > 0 ? curSpend / curLeads : 0,
+      },
+      previous: {
+        reach: Number(prv.reach || 0),
+        impressions: Number(prv.impressions || 0),
+        clicks: Number(prv.clicks || 0),
+        ctr: Number(prv.ctr || 0),
+        leads: prevLeads,
+        spend: prevSpend,
+        cpl: prevLeads > 0 ? prevSpend / prevLeads : 0,
+      },
+      campaigns: campaignData.map((c: any) => ({
+        campaign_id: c.campaign_id,
+        campaign_name: c.campaign_name,
+        reach: Number(c.reach || 0),
+        impressions: Number(c.impressions || 0),
+        clicks: Number(c.clicks || 0),
+        ctr: Number(c.ctr || 0),
+        frequency: Number(c.frequency || 0),
+        spend: Number(c.spend || 0),
+        leads: getAction(c, 'lead') + getAction(c, 'onsite_conversion.lead_grouped'),
+      })),
+    },
+    kpis,
+    tables: {},
+    campaigns,
+  };
 }

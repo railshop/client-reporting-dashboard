@@ -3,6 +3,7 @@ import { GoogleAuth } from 'google-auth-library';
 import { getDateRange, getPreviousDateRange, formatNumber, formatPercent, calcDelta } from '../data-pull-utils';
 
 interface GA4Result {
+  raw: Record<string, any>;
   kpis: any[];
   tables: Record<string, any>;
 }
@@ -108,6 +109,28 @@ export async function pullGA4(
   }));
 
   return {
+    raw: {
+      current: {
+        sessions: current[0],
+        users: current[1],
+        newUsers: current[2],
+        pageviews: current[3],
+        avgSessionDuration: current[4],
+        bounceRate: current[5],
+        conversions: current[6],
+      },
+      previous: {
+        sessions: previous[0],
+        users: previous[1],
+        newUsers: previous[2],
+        pageviews: previous[3],
+        avgSessionDuration: previous[4],
+        bounceRate: previous[5],
+        conversions: previous[6],
+      },
+      channelBreakdown: channelRows,
+      topLandingPages: pageRows,
+    },
     kpis,
     tables: {
       channelBreakdown: {

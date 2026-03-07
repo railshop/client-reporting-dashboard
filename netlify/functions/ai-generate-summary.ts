@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { sql } from './_shared/db';
 import {
   getTokenFromHeaders,
   verifyToken,
@@ -6,6 +7,8 @@ import {
   forbidden,
   jsonResponse,
 } from './_shared/auth-middleware';
+import { buildSectionDataContext, buildRawDataContext } from './_shared/ai-prompts';
+import { SOURCE_LABELS, type SourceType } from '../../src/shared/schemas/sources';
 import type { Context } from '@netlify/functions';
 
 const SYSTEM_PROMPT = `You are a digital marketing analyst writing monthly performance summaries for Railshop, a marketing agency. Your tone is professional, data-driven, and actionable. Write in 2-3 concise paragraphs. Reference specific numbers and trends from the data provided. Highlight wins, flag concerns, and suggest next steps where appropriate. Do not use bullet points or headers — write flowing prose paragraphs.`;
@@ -30,7 +33,7 @@ export default async (request: Request, _context: Context) => {
   }
 
   const body = await request.json();
-  const { source, kpis, tables, campaigns, userPrompt, type } = body;
+  const { source, kpis, tables, campaigns, userPrompt, type, fromRawData, clientSlug, periodStart } = body;
 
   if (!type || !['section', 'overview'].includes(type)) {
     return jsonResponse({ error: 'type must be "section" or "overview"' }, 400);
@@ -39,48 +42,100 @@ export default async (request: Request, _context: Context) => {
   // Build the data context for the AI
   let dataContext = '';
 
-  if (type === 'overview') {
-    dataContext = 'This is an overview summary for the entire monthly report.\n\n';
-    if (kpis?.length) {
-      dataContext += 'Hero Stats:\n';
-      for (const k of kpis) {
-        dataContext += `- ${k.label}: ${k.value}${k.delta ? ` (${k.direction === 'up' ? '+' : ''}${k.delta} vs last month)` : ''}\n`;
+  // If fromRawData is true, fetch context from raw_ingestions SSOT
+  if (fromRawData && clientSlug && periodStart) {
+    const clients = await sql`SELECT id FROM clients WHERE slug = ${clientSlug}`;
+    if (clients.length > 0) {
+      const clientId = clients[0].id;
+
+      if (type === 'section' && source) {
+        const ingestions = await sql`
+          SELECT raw_data FROM raw_ingestions
+          WHERE client_id = ${clientId} AND source = ${source} AND period_start = ${periodStart}
+        `;
+        if (ingestions.length > 0) {
+          // Get previous period for comparison
+          const prevDate = new Date(periodStart + 'T00:00:00');
+          const prevYear = prevDate.getMonth() === 0 ? prevDate.getFullYear() - 1 : prevDate.getFullYear();
+          const prevMonth = prevDate.getMonth() === 0 ? 12 : prevDate.getMonth();
+          const prevPeriodStart = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
+
+          const prevIngestions = await sql`
+            SELECT raw_data FROM raw_ingestions
+            WHERE client_id = ${clientId} AND source = ${source} AND period_start = ${prevPeriodStart}
+          `;
+
+          dataContext = `This is a section summary for: ${SOURCE_LABELS[source as SourceType] || source}\n\n`;
+          dataContext += buildSectionDataContext(source, ingestions[0].raw_data, prevIngestions[0]?.raw_data);
+        }
+      } else if (type === 'overview') {
+        const ingestions = await sql`
+          SELECT source, raw_data FROM raw_ingestions
+          WHERE client_id = ${clientId} AND period_start = ${periodStart}
+        `;
+        if (ingestions.length > 0) {
+          const prevDate = new Date(periodStart + 'T00:00:00');
+          const prevYear = prevDate.getMonth() === 0 ? prevDate.getFullYear() - 1 : prevDate.getFullYear();
+          const prevMonth = prevDate.getMonth() === 0 ? 12 : prevDate.getMonth();
+          const prevPeriodStart = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
+
+          const prevIngestions = await sql`
+            SELECT source, raw_data FROM raw_ingestions
+            WHERE client_id = ${clientId} AND period_start = ${prevPeriodStart}
+          `;
+
+          dataContext = 'This is an overview summary for the entire monthly report.\n\n';
+          dataContext += buildRawDataContext(ingestions as any[], prevIngestions as any[]);
+        }
       }
-      dataContext += '\n';
     }
-    if (tables && Object.keys(tables).length) {
-      dataContext += 'Platform Summary:\n';
-      dataContext += JSON.stringify(tables, null, 2) + '\n\n';
-    }
-  } else {
-    dataContext = `This is a section summary for: ${source}\n\n`;
-    if (kpis?.length) {
-      dataContext += 'KPIs:\n';
-      for (const k of kpis) {
-        dataContext += `- ${k.label}: ${k.value}${k.delta ? ` (${k.direction === 'up' ? '+' : ''}${k.delta} vs last month)` : ''}\n`;
-      }
-      dataContext += '\n';
-    }
-    if (tables && Object.keys(tables).length) {
-      for (const [key, table] of Object.entries(tables) as [string, any][]) {
-        dataContext += `Table — ${table.title || key}:\n`;
-        if (table.columns && table.rows) {
-          const headers = table.columns.map((c: any) => c.label).join(' | ');
-          dataContext += headers + '\n';
-          for (const row of table.rows.slice(0, 20)) {
-            const vals = table.columns.map((c: any) => row[c.key] ?? '').join(' | ');
-            dataContext += vals + '\n';
-          }
+  }
+
+  // Fall back to frontend-provided data if no raw data context was built
+  if (!dataContext) {
+    if (type === 'overview') {
+      dataContext = 'This is an overview summary for the entire monthly report.\n\n';
+      if (kpis?.length) {
+        dataContext += 'Hero Stats:\n';
+        for (const k of kpis) {
+          dataContext += `- ${k.label}: ${k.value}${k.delta ? ` (${k.direction === 'up' ? '+' : ''}${k.delta} vs last month)` : ''}\n`;
         }
         dataContext += '\n';
       }
-    }
-    if (campaigns?.length) {
-      dataContext += 'Campaigns:\n';
-      for (const c of campaigns.slice(0, 20)) {
-        dataContext += `- ${c.campaign_name} (${c.campaign_type || 'unknown'}): ${JSON.stringify(c.metrics)}\n`;
+      if (tables && Object.keys(tables).length) {
+        dataContext += 'Platform Summary:\n';
+        dataContext += JSON.stringify(tables, null, 2) + '\n\n';
       }
-      dataContext += '\n';
+    } else {
+      dataContext = `This is a section summary for: ${source}\n\n`;
+      if (kpis?.length) {
+        dataContext += 'KPIs:\n';
+        for (const k of kpis) {
+          dataContext += `- ${k.label}: ${k.value}${k.delta ? ` (${k.direction === 'up' ? '+' : ''}${k.delta} vs last month)` : ''}\n`;
+        }
+        dataContext += '\n';
+      }
+      if (tables && Object.keys(tables).length) {
+        for (const [key, table] of Object.entries(tables) as [string, any][]) {
+          dataContext += `Table — ${table.title || key}:\n`;
+          if (table.columns && table.rows) {
+            const headers = table.columns.map((c: any) => c.label).join(' | ');
+            dataContext += headers + '\n';
+            for (const row of table.rows.slice(0, 20)) {
+              const vals = table.columns.map((c: any) => row[c.key] ?? '').join(' | ');
+              dataContext += vals + '\n';
+            }
+          }
+          dataContext += '\n';
+        }
+      }
+      if (campaigns?.length) {
+        dataContext += 'Campaigns:\n';
+        for (const c of campaigns.slice(0, 20)) {
+          dataContext += `- ${c.campaign_name} (${c.campaign_type || 'unknown'}): ${JSON.stringify(c.metrics)}\n`;
+        }
+        dataContext += '\n';
+      }
     }
   }
 

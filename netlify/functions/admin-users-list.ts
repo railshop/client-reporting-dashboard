@@ -18,21 +18,29 @@ export default async (request: Request, _context: Context) => {
   if (!payload) return unauthorized('Invalid or expired token');
   if (payload.role !== 'admin') return forbidden();
 
-  const users = await sql`
-    SELECT
-      u.id,
-      u.email,
-      u.name,
-      u.role,
-      u.client_id,
-      u.created_at,
-      u.last_login_at,
-      c.name AS client_name,
-      c.slug AS client_slug
-    FROM users u
-    LEFT JOIN clients c ON u.client_id = c.id
-    ORDER BY u.role DESC, u.name
-  `;
+  const url = new URL(request.url);
+  const clientSlug = url.searchParams.get('clientSlug');
+
+  const users = clientSlug
+    ? await sql`
+        SELECT
+          u.id, u.email, u.name, u.role, u.client_id,
+          u.created_at, u.last_login_at,
+          c.name AS client_name, c.slug AS client_slug
+        FROM users u
+        JOIN clients c ON u.client_id = c.id
+        WHERE c.slug = ${clientSlug}
+        ORDER BY u.name
+      `
+    : await sql`
+        SELECT
+          u.id, u.email, u.name, u.role, u.client_id,
+          u.created_at, u.last_login_at,
+          c.name AS client_name, c.slug AS client_slug
+        FROM users u
+        LEFT JOIN clients c ON u.client_id = c.id
+        ORDER BY u.role DESC, u.name
+      `;
 
   return jsonResponse({ users });
 };

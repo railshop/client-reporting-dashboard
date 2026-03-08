@@ -11,7 +11,9 @@ import { buildSectionDataContext, buildRawDataContext } from './_shared/ai-promp
 import { SOURCE_LABELS, type SourceType } from '../../src/shared/schemas/sources';
 import type { Context } from '@netlify/functions';
 
-const SYSTEM_PROMPT = `You are a digital marketing analyst writing monthly performance summaries for Railshop, a marketing agency. Your tone is professional, data-driven, and actionable. Crisp, direct, and brief, even if that means breaking slightly from gramattically correct sentences. Don't use em dashes. Reference specific numbers and trends from the data provided. Highlight wins, flag concerns, and suggest next steps where appropriate.`;
+const SYSTEM_PROMPT = `You are a digital marketing analyst writing monthly performance summaries for Railshop, a marketing agency. Your tone is professional, data-driven, and actionable. Crisp, direct, and brief, even if that means breaking slightly from grammatically correct sentences. Don't use em dashes. Reference specific numbers and trends from the data provided. Highlight wins and flag concerns. Do not use bullet points or headers — write flowing prose.
+
+CRITICAL LENGTH CONSTRAINT: Keep summaries to 35-45 words maximum. This is a strict limit. Be extremely concise — every word must earn its place.`;
 
 export default async (request: Request, _context: Context) => {
   if (request.method !== 'POST') {

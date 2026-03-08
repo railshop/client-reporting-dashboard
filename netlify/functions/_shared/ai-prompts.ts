@@ -8,7 +8,7 @@ Your output must be valid JSON matching the exact schema below. Do NOT include a
 
 {
   "overview": {
-    "headline": "string — one-line performance summary for the month",
+    "headline": "string — punchy 6-10 word headline. Lead with the key insight or narrative, not a list of stats. Think editorial, not spreadsheet. Examples: 'Record Revenue Month Fueled by Paid Search', 'Ad Efficiency Gains Offset Seasonal Traffic Dip', 'SEO Momentum Building as Paid Costs Hold Steady'.",
     "summary": "string — 2-3 sentence shorthand executive summary. Professional, data-driven, actionable. Reference specific numbers and trends. Highlight wins and flag concerns. Crisp and direct, even if that means breaking slightly from gramattically correct sentences. Don't use em dashes. Keep this very brief and high level, keeping to a maximum of 35-45 words.",
     "hero_stats": [
       {

@@ -101,16 +101,25 @@ function SourceCredentialForm({
   source,
   onSaved,
   onCancel,
+  existingIdentifiers,
+  hasCredentials,
 }: {
   clientSlug: string;
   source: SourceType;
   onSaved: () => void;
   onCancel: () => void;
+  existingIdentifiers?: Record<string, string>;
+  hasCredentials?: boolean;
 }) {
   const fields = CREDENTIAL_FIELDS[source];
   const fieldEntries = Object.entries(fields);
   const [values, setValues] = useState<Record<string, string>>(
-    Object.fromEntries(fieldEntries.map(([k]) => [k, '']))
+    Object.fromEntries(
+      fieldEntries.map(([k, def]) => [
+        k,
+        !def.secret && existingIdentifiers?.[k] ? existingIdentifiers[k] : '',
+      ])
+    )
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -129,9 +138,13 @@ function SourceCredentialForm({
     setSaving(true);
     setError('');
     try {
+      const credentials: Record<string, string> = {};
+      for (const [key, val] of Object.entries(values)) {
+        if (val) credentials[key] = val;
+      }
       await apiFetch('/client-sources-update', {
         method: 'PUT',
-        body: JSON.stringify({ clientSlug, source, credentials: values }),
+        body: JSON.stringify({ clientSlug, source, credentials }),
       });
       onSaved();
     } catch (err: unknown) {
@@ -144,28 +157,36 @@ function SourceCredentialForm({
   return (
     <form onSubmit={handleSave} className="border-t border-border-v1 px-4 py-4">
       <div className="grid grid-cols-1 gap-3 mb-3">
-        {fieldEntries.map(([key, def]) => (
-          <div key={key}>
-            <label className={LABEL_CLS}>{def.label}</label>
-            {def.multiline ? (
-              <textarea
-                value={values[key]}
-                onChange={(e) => setValues({ ...values, [key]: e.target.value })}
-                rows={4}
-                className={INPUT_CLS + ' resize-y font-mono text-[11px]'}
-                placeholder={def.secret ? 'Paste value...' : ''}
-              />
-            ) : (
-              <input
-                type={def.secret ? 'password' : 'text'}
-                value={values[key]}
-                onChange={(e) => setValues({ ...values, [key]: e.target.value })}
-                className={INPUT_CLS}
-                placeholder={def.secret ? '••••••••' : ''}
-              />
-            )}
-          </div>
-        ))}
+        {fieldEntries.map(([key, def]) => {
+          const isSavedSecret = def.secret && hasCredentials && !values[key];
+          return (
+            <div key={key}>
+              <div className="flex items-center justify-between">
+                <label className={LABEL_CLS}>{def.label}</label>
+                {isSavedSecret && (
+                  <span className="font-mono text-[9px] text-v1-green tracking-wide">SAVED</span>
+                )}
+              </div>
+              {def.multiline ? (
+                <textarea
+                  value={values[key]}
+                  onChange={(e) => setValues({ ...values, [key]: e.target.value })}
+                  rows={4}
+                  className={INPUT_CLS + ' resize-y font-mono text-[11px]'}
+                  placeholder={isSavedSecret ? 'Leave blank to keep existing value' : 'Paste value...'}
+                />
+              ) : (
+                <input
+                  type={def.secret ? 'password' : 'text'}
+                  value={values[key]}
+                  onChange={(e) => setValues({ ...values, [key]: e.target.value })}
+                  className={INPUT_CLS}
+                  placeholder={isSavedSecret ? 'Leave blank to keep existing value' : def.secret ? '••••••••' : ''}
+                />
+              )}
+            </div>
+          );
+        })}
       </div>
       {error && <p className="text-red font-mono text-[11px] mb-3">{error}</p>}
       <div className="flex gap-3">
@@ -272,6 +293,8 @@ function SourceCard({
             onUpdated();
           }}
           onCancel={() => setEditing(false)}
+          existingIdentifiers={existing?.identifiers}
+          hasCredentials={hasCredentials}
         />
       )}
     </div>

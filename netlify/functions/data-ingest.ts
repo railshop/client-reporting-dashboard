@@ -11,7 +11,6 @@ import { pullGA4 } from './_shared/pulls/ga4';
 import { pullGSC } from './_shared/pulls/gsc';
 import { pullGoogleAds } from './_shared/pulls/google-ads';
 import { pullMeta } from './_shared/pulls/meta';
-import { pullServiceTitan } from './_shared/pulls/servicetitan';
 import { pullGBP } from './_shared/pulls/gbp';
 import type { SourceFilter } from '../../src/shared/schemas/filters';
 import type { Context } from '@netlify/functions';
@@ -23,7 +22,6 @@ const pullFunctions: Partial<Record<SourceType, (creds: Record<string, string>, 
   gsc: pullGSC,
   google_ads: pullGoogleAds,
   meta: pullMeta,
-  servicetitan: pullServiceTitan,
   gbp: pullGBP,
 };
 

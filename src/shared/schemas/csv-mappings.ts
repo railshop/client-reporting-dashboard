@@ -86,12 +86,18 @@ export const CSV_SOURCE_MAPPINGS: Partial<Record<SourceType, CsvSourceMapping>> 
   },
   servicetitan: {
     label: 'ServiceTitan',
-    description: 'Import ServiceTitan job data. Each row is a job type summary.',
+    description: 'Campaign Tracking - Jobs Booked Performance report (.xlsx or .csv). Only "RS -" campaigns are imported.',
     mode: 'detail',
     columns: [
-      { field: 'type', label: 'Job Type', type: 'string', required: true },
-      { field: 'count', label: 'Count', type: 'number' },
-      { field: 'revenue', label: 'Revenue', type: 'currency' },
+      { field: 'campaign_name', label: 'Campaign Name', type: 'string', required: true },
+      { field: 'jobs_booked', label: 'Total Jobs Booked', type: 'number', required: true },
+      { field: 'jobs_booked_new', label: 'Jobs Booked from New Customers', type: 'number' },
+      { field: 'jobs_booked_existing', label: 'Jobs Booked from Existing Customers', type: 'number' },
+      { field: 'completed_revenue', label: 'Completed Revenue', type: 'currency' },
+      { field: 'total_sales', label: 'Total Sales', type: 'currency' },
+      { field: 'opportunity_conversion_rate', label: 'Opportunity Conversion Rate', type: 'number' },
+      { field: 'revenue_per_lead', label: 'Revenue Per Lead', type: 'currency' },
+      { field: 'total_job_average', label: 'Total Job Average', type: 'currency' },
     ],
   },
   gbp: {
@@ -186,17 +192,35 @@ export function buildRawDataFromCsv(
   }
 
   if (source === 'servicetitan') {
-    const totalJobs = rows.reduce((s, r) => s + (Number(r.count) || 0), 0);
-    const totalRevenue = rows.reduce((s, r) => s + (Number(r.revenue) || 0), 0);
+    // Only keep rows whose campaign_name starts with "RS - "
+    const filtered = rows.filter((r) => String(r.campaign_name || '').startsWith('RS - '));
+    const totalJobsBooked = filtered.reduce((s, r) => s + (Number(r.jobs_booked) || 0), 0);
+    const totalJobsNew = filtered.reduce((s, r) => s + (Number(r.jobs_booked_new) || 0), 0);
+    const totalJobsExisting = filtered.reduce((s, r) => s + (Number(r.jobs_booked_existing) || 0), 0);
+    const completedRevenue = filtered.reduce((s, r) => s + (Number(r.completed_revenue) || 0), 0);
+    const totalSales = filtered.reduce((s, r) => s + (Number(r.total_sales) || 0), 0);
+    const avgConversionRate = filtered.length > 0
+      ? filtered.reduce((s, r) => s + (Number(r.opportunity_conversion_rate) || 0), 0) / filtered.length
+      : 0;
+    const avgRevenuePerLead = filtered.length > 0
+      ? filtered.reduce((s, r) => s + (Number(r.revenue_per_lead) || 0), 0) / filtered.length
+      : 0;
+    const avgJobAverage = filtered.length > 0
+      ? filtered.reduce((s, r) => s + (Number(r.total_job_average) || 0), 0) / filtered.length
+      : 0;
     return {
       current: {
-        totalJobs,
-        completedJobs: totalJobs,
-        totalRevenue,
-        avgTicket: totalJobs > 0 ? totalRevenue / totalJobs : 0,
+        totalJobsBooked,
+        jobsBookedNew: totalJobsNew,
+        jobsBookedExisting: totalJobsExisting,
+        completedRevenue,
+        totalSales,
+        opportunityConversionRate: avgConversionRate,
+        revenuePerLead: avgRevenuePerLead,
+        totalJobAverage: avgJobAverage,
       },
       previous: {},
-      jobsByType: rows,
+      campaigns: filtered,
     };
   }
 

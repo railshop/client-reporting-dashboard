@@ -143,7 +143,7 @@ function IngestionPanel({
             {expanded ? 'HIDE RAW DATA ▾' : 'VIEW RAW DATA ▸'}
           </button>
           {expanded && !loadingIngestions && (
-            <div className="mt-3">
+            <div className="mt-3 min-w-0 overflow-hidden">
               <RawDataViewer ingestions={ingestions} />
             </div>
           )}

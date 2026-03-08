@@ -169,35 +169,46 @@ function transformMeta(raw: Record<string, any>): TransformResult {
 }
 
 function transformServiceTitan(raw: Record<string, any>): TransformResult {
-  const cur = raw.current;
-  const prv = raw.previous;
+  const cur = raw.current || {};
+
+  const fmt$ = (v: number) => '$' + (v || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
 
   const kpis = [
-    { label: 'Total Jobs', value: formatNumber(cur.totalJobs), ...calcDelta(cur.totalJobs, prv.totalJobs), color: 'default' as const },
-    { label: 'Completed Jobs', value: formatNumber(cur.completedJobs), ...calcDelta(cur.completedJobs, prv.completedJobs), color: 'default' as const },
-    { label: 'Revenue', value: '$' + cur.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 }), ...calcDelta(cur.totalRevenue, prv.totalRevenue), color: 'default' as const },
-    { label: 'Avg Ticket', value: '$' + cur.avgTicket.toFixed(2), ...calcDelta(cur.avgTicket, prv.avgTicket), color: 'default' as const },
+    { label: 'Jobs Booked', value: formatNumber(cur.totalJobsBooked || 0), color: 'default' as const },
+    { label: 'New Customers', value: formatNumber(cur.jobsBookedNew || 0), color: 'default' as const },
+    { label: 'Existing Customers', value: formatNumber(cur.jobsBookedExisting || 0), color: 'default' as const },
+    { label: 'Completed Revenue', value: fmt$(cur.completedRevenue || 0), color: 'default' as const },
+    { label: 'Total Sales', value: fmt$(cur.totalSales || 0), color: 'default' as const },
+    { label: 'Conversion Rate', value: formatPercent((cur.opportunityConversionRate || 0) * 100), color: 'default' as const },
+    { label: 'Revenue / Lead', value: fmt$(cur.revenuePerLead || 0), color: 'default' as const },
+    { label: 'Avg Job Total', value: fmt$(cur.totalJobAverage || 0), color: 'default' as const },
   ];
 
-  const jobSummaryRows = (raw.jobsByType || [])
-    .sort((a: any, b: any) => b.revenue - a.revenue)
-    .map((j: any) => ({
-      type: j.type,
-      count: String(j.count),
-      revenue: '$' + j.revenue.toLocaleString('en-US', { minimumFractionDigits: 2 }),
+  const campaigns = (raw.campaigns || [])
+    .sort((a: any, b: any) => (Number(b.completed_revenue) || 0) - (Number(a.completed_revenue) || 0))
+    .map((c: any) => ({
+      campaign: String(c.campaign_name || ''),
+      jobs_booked: String(c.jobs_booked || 0),
+      new_customers: String(c.jobs_booked_new || 0),
+      existing_customers: String(c.jobs_booked_existing || 0),
+      completed_revenue: fmt$(Number(c.completed_revenue) || 0),
+      total_sales: fmt$(Number(c.total_sales) || 0),
     }));
 
   return {
     kpis,
     tables: {
-      jobSummary: {
-        title: 'Job Summary by Type',
+      campaignPerformance: {
+        title: 'Campaign Performance',
         columns: [
-          { key: 'type', label: 'Job Type', align: 'left' },
-          { key: 'count', label: 'Count', align: 'right' },
-          { key: 'revenue', label: 'Revenue', align: 'right' },
+          { key: 'campaign', label: 'Campaign', align: 'left' },
+          { key: 'jobs_booked', label: 'Jobs', align: 'right' },
+          { key: 'new_customers', label: 'New', align: 'right' },
+          { key: 'existing_customers', label: 'Existing', align: 'right' },
+          { key: 'completed_revenue', label: 'Revenue', align: 'right' },
+          { key: 'total_sales', label: 'Sales', align: 'right' },
         ],
-        rows: jobSummaryRows,
+        rows: campaigns,
       },
     },
   };

@@ -1,13 +1,5 @@
 import { SOURCE_LABELS, type SourceType } from '@/shared/schemas/sources';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableHead,
-  TableRow,
-  TableCell,
-} from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 
 interface RawIngestion {
@@ -28,74 +20,113 @@ function formatValue(val: unknown): string {
   return JSON.stringify(val);
 }
 
+const thCls = 'px-3 py-2 text-left text-[11px] font-medium text-text-3 whitespace-nowrap';
+const tdCls = 'px-3 py-1.5 text-[12px] text-text-v1 font-mono whitespace-nowrap';
+
 function KeyValueTable({ data, title }: { data: Record<string, any>; title: string }) {
   const entries = Object.entries(data).filter(
-    ([, v]) => typeof v !== 'object' || v === null
+    ([, v]) => (typeof v !== 'object' || v === null) && v !== 0 && v !== '' && v !== undefined
   );
   if (entries.length === 0) return null;
 
   return (
     <div className="mb-4">
       <div className="font-mono text-[10px] text-text-3 tracking-[0.05em] mb-2">{title}</div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="text-[11px]">Metric</TableHead>
-            <TableHead className="text-[11px] text-right">Value</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
+      <table className="text-sm border-collapse">
+        <thead>
+          <tr className="border-b border-border-v1">
+            <th className={thCls}>Metric</th>
+            <th className={thCls + ' text-right'}>Value</th>
+          </tr>
+        </thead>
+        <tbody>
           {entries.map(([key, val]) => (
-            <TableRow key={key}>
-              <TableCell className="text-[12px] text-text-v1">{key}</TableCell>
-              <TableCell className="text-[12px] text-text-v1 text-right font-mono">
-                {formatValue(val)}
-              </TableCell>
-            </TableRow>
+            <tr key={key} className="border-b border-border-v1">
+              <td className={tdCls}>{key}</td>
+              <td className={tdCls + ' text-right'}>{formatValue(val)}</td>
+            </tr>
           ))}
-        </TableBody>
-      </Table>
+        </tbody>
+      </table>
     </div>
   );
 }
 
+/** Put name/label/identifier columns first, then the rest */
+function sortColumns(columns: string[]): string[] {
+  const nameKeys = ['campaign_name', 'name', 'campaign', 'type', 'label', 'query', 'page', 'channel'];
+  const first: string[] = [];
+  const rest: string[] = [];
+  for (const col of columns) {
+    if (nameKeys.includes(col.toLowerCase())) {
+      first.push(col);
+    } else {
+      rest.push(col);
+    }
+  }
+  return [...first, ...rest];
+}
+
+/**
+ * Wide array table using CSS `contain: inline-size` to prevent
+ * the table's intrinsic width from propagating up the DOM tree.
+ * This is the key property — it tells the browser to size this
+ * element from its parent context, never from its descendants.
+ */
 function ArrayTable({ data, title }: { data: any[]; title: string }) {
   if (!data.length) return null;
-  const columns = Object.keys(data[0]);
+  const columns = sortColumns(Object.keys(data[0]));
 
   return (
     <div className="mb-4">
       <div className="font-mono text-[10px] text-text-3 tracking-[0.05em] mb-2">{title}</div>
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
+      <div
+        className="overflow-x-auto rounded-md border border-border-v1"
+        style={{ contain: 'inline-size' }}
+      >
+        <table className="text-sm border-collapse">
+          <thead>
+            <tr className="border-b border-border-v1 bg-surface-2">
               {columns.map((col) => (
-                <TableHead key={col} className="text-[11px]">{col}</TableHead>
+                <th key={col} className={thCls}>{col}</th>
               ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+            </tr>
+          </thead>
+          <tbody>
             {data.slice(0, 50).map((row, i) => (
-              <TableRow key={i}>
+              <tr key={i} className="border-b border-border-v1">
                 {columns.map((col) => (
-                  <TableCell key={col} className="text-[12px] text-text-v1 font-mono">
-                    {formatValue(row[col])}
-                  </TableCell>
+                  <td key={col} className={tdCls}>{formatValue(row[col])}</td>
                 ))}
-              </TableRow>
+              </tr>
             ))}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       </div>
+      {data.length > 50 && (
+        <div className="text-[10px] text-text-3 mt-1">
+          Showing 50 of {data.length} rows
+        </div>
+      )}
     </div>
   );
+}
+
+/** Skip empty objects (e.g. empty "previous" with all zeros) */
+function isEmptySection(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  if (Array.isArray(value)) return value.length === 0;
+  const entries = Object.entries(value as Record<string, unknown>).filter(
+    ([, v]) => v !== 0 && v !== '' && v !== null && v !== undefined
+  );
+  return entries.length === 0;
 }
 
 function SourceRawData({ rawData }: { rawData: Record<string, any> }) {
   const sections: React.ReactNode[] = [];
 
   for (const [key, value] of Object.entries(rawData)) {
+    if (isEmptySection(value)) continue;
     if (Array.isArray(value)) {
       sections.push(<ArrayTable key={key} data={value} title={key} />);
     } else if (typeof value === 'object' && value !== null) {

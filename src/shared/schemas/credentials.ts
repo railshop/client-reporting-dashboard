@@ -25,12 +25,7 @@ export const metaCredentialsSchema = z.object({
 
 export const lsaCredentialsSchema = z.object({});
 
-export const servicetitanCredentialsSchema = z.object({
-  api_key: z.string().min(1),
-  tenant_id: z.string().min(1),
-  client_id: z.string().min(1),
-  client_secret: z.string().min(1),
-});
+export const servicetitanCredentialsSchema = z.object({});
 
 export const gbpCredentialsSchema = z.object({
   service_account_json: z.string().min(1),
@@ -77,12 +72,7 @@ export const CREDENTIAL_FIELDS: Record<SourceType, Record<string, FieldDef>> = {
     ad_account_id: { label: 'Ad Account ID', secret: false },
   },
   lsa: {},
-  servicetitan: {
-    api_key: { label: 'API Key', secret: true },
-    tenant_id: { label: 'Tenant ID', secret: false },
-    client_id: { label: 'Client ID', secret: false },
-    client_secret: { label: 'Client Secret', secret: true },
-  },
+  servicetitan: {},
   gbp: {
     service_account_json: { label: 'Service Account JSON', secret: true, multiline: true },
     account_id: { label: 'Account ID', secret: false },

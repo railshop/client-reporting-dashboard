@@ -32,20 +32,38 @@ function SourceCredentialDialog({
   open,
   onOpenChange,
   onSaved,
+  existingIdentifiers,
+  hasCredentials,
 }: {
   clientSlug: string;
   source: SourceType;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
+  existingIdentifiers?: Record<string, string>;
+  hasCredentials?: boolean;
 }) {
   const fields = CREDENTIAL_FIELDS[source];
   const fieldEntries = Object.entries(fields);
-  const [values, setValues] = useState<Record<string, string>>(
-    Object.fromEntries(fieldEntries.map(([k]) => [k, '']))
-  );
+  const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // Reset form values when dialog opens
+  useEffect(() => {
+    if (open) {
+      setValues(
+        Object.fromEntries(
+          fieldEntries.map(([k, def]) => [
+            k,
+            // Pre-fill non-secret fields from existing identifiers
+            !def.secret && existingIdentifiers?.[k] ? existingIdentifiers[k] : '',
+          ])
+        )
+      );
+      setError('');
+    }
+  }, [open]);
 
   if (fieldEntries.length === 0) {
     return (
@@ -67,9 +85,14 @@ function SourceCredentialDialog({
     setSaving(true);
     setError('');
     try {
+      // Only send fields that have values — blank secrets mean "keep existing"
+      const credentials: Record<string, string> = {};
+      for (const [key, val] of Object.entries(values)) {
+        if (val) credentials[key] = val;
+      }
       await apiFetch('/client-sources-update', {
         method: 'PUT',
-        body: JSON.stringify({ clientSlug, source, credentials: values }),
+        body: JSON.stringify({ clientSlug, source, credentials }),
       });
       onSaved();
       onOpenChange(false);
@@ -87,27 +110,35 @@ function SourceCredentialDialog({
           <DialogTitle>Configure {SOURCE_LABELS[source]}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSave} className="space-y-4">
-          {fieldEntries.map(([key, def]) => (
-            <div key={key} className="space-y-2">
-              <Label>{def.label}</Label>
-              {def.multiline ? (
-                <textarea
-                  value={values[key]}
-                  onChange={(e) => setValues({ ...values, [key]: e.target.value })}
-                  rows={4}
-                  className={INPUT_CLS + ' resize-y font-mono text-[11px]'}
-                  placeholder={def.secret ? 'Paste value...' : ''}
-                />
-              ) : (
-                <Input
-                  type={def.secret ? 'password' : 'text'}
-                  value={values[key]}
-                  onChange={(e) => setValues({ ...values, [key]: e.target.value })}
-                  placeholder={def.secret ? '••••••••' : ''}
-                />
-              )}
-            </div>
-          ))}
+          {fieldEntries.map(([key, def]) => {
+            const isSavedSecret = def.secret && hasCredentials && !values[key];
+            return (
+              <div key={key} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>{def.label}</Label>
+                  {isSavedSecret && (
+                    <span className="text-[10px] font-mono text-v1-green tracking-wide">SAVED</span>
+                  )}
+                </div>
+                {def.multiline ? (
+                  <textarea
+                    value={values[key]}
+                    onChange={(e) => setValues({ ...values, [key]: e.target.value })}
+                    rows={4}
+                    className={INPUT_CLS + ' resize-y font-mono text-[11px]'}
+                    placeholder={isSavedSecret ? 'Leave blank to keep existing value' : 'Paste value...'}
+                  />
+                ) : (
+                  <Input
+                    type={def.secret ? 'password' : 'text'}
+                    value={values[key]}
+                    onChange={(e) => setValues({ ...values, [key]: e.target.value })}
+                    placeholder={isSavedSecret ? 'Leave blank to keep existing value' : def.secret ? '••••••••' : ''}
+                  />
+                )}
+              </div>
+            );
+          })}
           {error && <p className="text-destructive text-sm">{error}</p>}
           <div className="flex gap-3 pt-2">
             <Button type="submit" disabled={saving}>
@@ -407,6 +438,8 @@ function SourceCard({
         onSaved={() => {
           onUpdated();
         }}
+        existingIdentifiers={existing?.identifiers}
+        hasCredentials={hasCredentials}
       />
 
       {canFilter && existing?.id && (

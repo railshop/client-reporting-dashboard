@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import type { WorkBook } from 'xlsx';
 import { apiFetch } from '@/lib/api';
 import { SOURCE_LABELS, type SourceType } from '@/shared/schemas/sources';
 import { CSV_SOURCE_MAPPINGS, type CsvColumnDef } from '@/shared/schemas/csv-mappings';
@@ -63,6 +64,20 @@ function parseCsvText(text: string): { headers: string[]; rows: string[][] } {
   return { headers, rows };
 }
 
+/** Parse an XLSX/XLS ArrayBuffer into headers + rows (lazy-loads xlsx) */
+async function parseXlsx(buffer: ArrayBuffer): Promise<{ headers: string[]; rows: string[][] }> {
+  const XLSX = await import('xlsx');
+  const wb: WorkBook = XLSX.read(buffer, { type: 'array' });
+  // Use the first sheet (skip any "Filters" sheet)
+  const sheetName = wb.SheetNames.find((n) => n.toLowerCase() !== 'filters') || wb.SheetNames[0];
+  const sheet = wb.Sheets[sheetName];
+  const raw: string[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  if (raw.length === 0) return { headers: [], rows: [] };
+  const headers = raw[0].map(String);
+  const rows = raw.slice(1).map((r) => r.map(String));
+  return { headers, rows };
+}
+
 function autoMatchColumns(
   csvHeaders: string[],
   targetColumns: CsvColumnDef[]
@@ -96,6 +111,14 @@ function autoMatchColumns(
 // Source types that have CSV mappings defined
 const CSV_SOURCES = Object.keys(CSV_SOURCE_MAPPINGS) as SourceType[];
 
+/** Subtext shown under each source button */
+function sourceSubtext(source: SourceType): string {
+  const mapping = CSV_SOURCE_MAPPINGS[source];
+  if (!mapping) return '';
+  if (source === 'servicetitan') return 'Campaign Tracking - Jobs Booked Performance';
+  return mapping.mode === 'summary' ? 'Summary metrics' : 'Detail rows';
+}
+
 export function CsvUploadPanel({
   clientSlug,
   periodStart,
@@ -127,27 +150,47 @@ export function CsvUploadPanel({
     setUploading(false);
   };
 
+  const processFile = (headers: string[], rows: string[][], name: string) => {
+    setCsvHeaders(headers);
+    setCsvRows(rows);
+    setFilename(name);
+
+    if (selectedSource) {
+      const mapping = CSV_SOURCE_MAPPINGS[selectedSource];
+      if (mapping) {
+        setColumnMap(autoMatchColumns(headers, mapping.columns));
+      }
+    }
+    setStep('map');
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setFilename(file.name);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = reader.result as string;
-      setCsvText(text);
-      const { headers, rows } = parseCsvText(text);
-      setCsvHeaders(headers);
-      setCsvRows(rows);
 
-      if (selectedSource) {
-        const mapping = CSV_SOURCE_MAPPINGS[selectedSource];
-        if (mapping) {
-          setColumnMap(autoMatchColumns(headers, mapping.columns));
-        }
-      }
-      setStep('map');
-    };
-    reader.readAsText(file);
+    const isXls = /\.xlsx?$/i.test(file.name);
+
+    if (isXls) {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const buffer = reader.result as ArrayBuffer;
+        const { headers, rows } = await parseXlsx(buffer);
+        // Convert back to CSV text for the backend
+        const csvLines = [headers.join(','), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))];
+        setCsvText(csvLines.join('\n'));
+        processFile(headers, rows, file.name);
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = reader.result as string;
+        setCsvText(text);
+        const { headers, rows } = parseCsvText(text);
+        processFile(headers, rows, file.name);
+      };
+      reader.readAsText(file);
+    }
   };
 
   const handleSourceSelect = (source: SourceType) => {
@@ -192,7 +235,7 @@ export function CsvUploadPanel({
       reset();
       onUploaded();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'CSV upload failed');
+      alert(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setUploading(false);
     }
@@ -211,7 +254,7 @@ export function CsvUploadPanel({
         size="sm"
         onClick={() => { reset(); setDialogOpen(true); }}
       >
-        Upload CSV
+        Import Data
       </Button>
 
       <Dialog
@@ -223,9 +266,9 @@ export function CsvUploadPanel({
       >
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Import CSV Data</DialogTitle>
+            <DialogTitle>Import Data</DialogTitle>
             <DialogDescription>
-              Upload a CSV file to ingest data for a source that doesn't have an API connection.
+              Upload a CSV or Excel file to ingest data for a source.
             </DialogDescription>
           </DialogHeader>
 
@@ -250,7 +293,7 @@ export function CsvUploadPanel({
                     >
                       <div className="font-semibold">{SOURCE_LABELS[s]}</div>
                       <div className="text-[10px] mt-0.5 opacity-70">
-                        {CSV_SOURCE_MAPPINGS[s]?.mode === 'summary' ? 'Summary metrics' : 'Detail rows'}
+                        {sourceSubtext(s)}
                       </div>
                     </button>
                   ))}
@@ -260,7 +303,7 @@ export function CsvUploadPanel({
               {selectedSource && (
                 <div>
                   <label className="block font-mono text-[10px] text-text-3 mb-1.5 tracking-[0.05em]">
-                    CSV FILE
+                    FILE
                   </label>
                   <p className="text-[11px] text-muted-foreground mb-2">
                     {sourceMapping?.description}
@@ -272,7 +315,7 @@ export function CsvUploadPanel({
                     <input
                       ref={fileRef}
                       type="file"
-                      accept=".csv,text/csv"
+                      accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                       onChange={handleFileChange}
                       className="hidden"
                     />
@@ -284,7 +327,7 @@ export function CsvUploadPanel({
                           <span className="text-[10px]">{csvRows.length} rows detected</span>
                         </>
                       ) : (
-                        'Click to select a CSV file or drag and drop'
+                        'Click to select a CSV or Excel file'
                       )}
                     </div>
                   </div>
@@ -405,6 +448,12 @@ export function CsvUploadPanel({
               {csvRows.length > 20 && (
                 <div className="text-[10px] text-text-3 text-center">
                   Showing 20 of {csvRows.length} rows
+                </div>
+              )}
+
+              {selectedSource === 'servicetitan' && (
+                <div className="text-[11px] text-text-3 bg-surface-2 border border-border-v1 rounded-lg px-3 py-2">
+                  Only campaigns starting with <span className="font-mono text-text-v1">"RS - "</span> will be imported.
                 </div>
               )}
 

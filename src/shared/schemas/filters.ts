@@ -19,7 +19,6 @@ export interface FilterOption {
 export const FILTERABLE_SOURCES: Partial<Record<SourceType, { filterType: string; label: string }>> = {
   meta: { filterType: 'campaign', label: 'Campaigns' },
   google_ads: { filterType: 'campaign', label: 'Campaigns' },
-  servicetitan: { filterType: 'campaign', label: 'Campaigns' },
 };
 
 export function isFilterableSource(source: SourceType): boolean {

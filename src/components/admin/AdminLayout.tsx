@@ -15,7 +15,7 @@ export function AdminLayout() {
             <Separator orientation="vertical" className="mr-2 !h-4" />
             <div id="admin-breadcrumb" />
           </header>
-          <div className="flex-1 p-6">
+          <div className="flex-1 p-6 min-w-0">
             <Outlet />
           </div>
         </SidebarInset>

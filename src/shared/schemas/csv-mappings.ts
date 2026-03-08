@@ -18,21 +18,6 @@ export interface CsvSourceMapping {
 // 'summary' mode: one row of aggregate metrics → raw_data.current
 // 'detail' mode: many rows (campaigns, leads, etc.) → raw_data.rows + computed summary
 export const CSV_SOURCE_MAPPINGS: Partial<Record<SourceType, CsvSourceMapping>> = {
-  lsa: {
-    label: 'Local Services Ads',
-    description: 'Import LSA lead data. Each row represents a lead.',
-    mode: 'detail',
-    columns: [
-      { field: 'lead_type', label: 'Lead Type', type: 'string', required: true },
-      { field: 'status', label: 'Status', type: 'string' },
-      { field: 'category', label: 'Category/Service', type: 'string' },
-      { field: 'date', label: 'Date', type: 'string' },
-      { field: 'charged', label: 'Charged', type: 'currency' },
-      { field: 'customer_name', label: 'Customer Name', type: 'string' },
-      { field: 'customer_phone', label: 'Phone', type: 'string' },
-      { field: 'zip_code', label: 'Zip Code', type: 'string' },
-    ],
-  },
   ga4: {
     label: 'Website (GA4)',
     description: 'Import GA4 summary metrics. One row with aggregate values.',
@@ -148,34 +133,6 @@ export function buildRawDataFromCsv(
   }
 
   // Detail mode: store all rows + compute aggregates
-  if (source === 'lsa') {
-    const totalLeads = rows.length;
-    const totalSpend = rows.reduce((s, r) => s + (Number(r.charged) || 0), 0);
-    const leadsByType: Record<string, number> = {};
-    const leadsByStatus: Record<string, number> = {};
-    const leadsByCategory: Record<string, number> = {};
-    for (const r of rows) {
-      const lt = String(r.lead_type || 'Unknown');
-      const st = String(r.status || 'Unknown');
-      const cat = String(r.category || 'Unknown');
-      leadsByType[lt] = (leadsByType[lt] || 0) + 1;
-      leadsByStatus[st] = (leadsByStatus[st] || 0) + 1;
-      leadsByCategory[cat] = (leadsByCategory[cat] || 0) + 1;
-    }
-    return {
-      current: {
-        totalLeads,
-        totalSpend,
-        costPerLead: totalLeads > 0 ? totalSpend / totalLeads : 0,
-        leadsByType,
-        leadsByStatus,
-        leadsByCategory,
-      },
-      previous: {},
-      leads: rows,
-    };
-  }
-
   if (source === 'google_ads' || source === 'meta') {
     const totals: Record<string, number> = {};
     for (const col of mapping.columns) {

@@ -198,29 +198,13 @@ SELECT
   rp.id,
   'lsa'::source_type,
   '[
-    {"label": "Leads Received", "value": "94", "delta": "18%", "direction": "up", "color": "blue"},
-    {"label": "Phone Calls", "value": "88", "delta": "16%", "direction": "up", "color": "default"},
-    {"label": "Cost Per Lead", "value": "$21.28", "delta": "12%", "direction": "down", "color": "default"},
-    {"label": "Google Rating", "value": "4.9\u2605", "delta": "142 reviews", "direction": "neutral", "color": "gold"}
+    {"label": "Leads", "value": "84", "delta": "+12.0%", "direction": "up", "color": "default"},
+    {"label": "Impressions", "value": "4,970", "delta": "+8.3%", "direction": "up", "color": "default"},
+    {"label": "Impression \u2192 Lead", "value": "1.7%", "delta": "+3.4%", "direction": "up", "color": "default"},
+    {"label": "Absolute Top Rate", "value": "67.2%", "delta": "+2.1%", "direction": "up", "color": "default"},
+    {"label": "Spend", "value": "$3,709.06", "delta": "+7.5%", "direction": "up", "color": "default"}
   ]'::jsonb,
-  '{
-    "leadBreakdown": {
-      "title": "Month-over-Month",
-      "columns": [
-        {"key": "metric", "label": "Metric", "align": "left"},
-        {"key": "march", "label": "March", "align": "right"},
-        {"key": "february", "label": "February", "align": "right"},
-        {"key": "change", "label": "Change", "align": "right"}
-      ],
-      "rows": [
-        {"metric": "Total Leads", "march": "94", "february": "80", "change": "+17.5%"},
-        {"metric": "Phone Calls", "march": "88", "february": "76", "change": "+15.8%"},
-        {"metric": "Messages", "march": "6", "february": "4", "change": "+50%"},
-        {"metric": "Budget Spent", "march": "$2,000", "february": "$1,860", "change": "+7.5%"},
-        {"metric": "CPL", "march": "$21.28", "february": "$23.25", "change": "-8.5%"}
-      ]
-    }
-  }'::jsonb,
+  '{}'::jsonb,
   'Budget fully utilized for the first time since October — strong seasonal signal heading into spring.\nDisputed 3 calls flagged as spam. Awaiting Google credit of ~$63 applied to April.\nRecommending LSA budget increase to $2,200 in April given lead strength and remaining CPL headroom.',
   NULL
 FROM report_periods rp

@@ -18,7 +18,7 @@ const SOURCE_TAGS: Record<string, string> = {
   gsc: 'Google Search Console',
   google_ads: 'Google Ads API',
   meta: 'Facebook & Instagram',
-  lsa: 'LSA Dashboard',
+  lsa: 'Google Ads API',
   servicetitan: 'ServiceTitan',
   gbp: 'Google Business Profile',
 };

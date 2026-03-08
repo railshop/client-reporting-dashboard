@@ -65,7 +65,7 @@ function SourceCredentialDialog({
     }
   }, [open]);
 
-  if (fieldEntries.length === 0) {
+  if (fieldEntries.length === 0 && source !== 'lsa') {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent>
@@ -340,11 +340,15 @@ function SourceCard({
   clientSlug,
   source,
   existing,
+  googleAdsConfigured,
+  googleAdsDataSourceId,
   onUpdated,
 }: {
   clientSlug: string;
   source: SourceType;
   existing?: { id: string; active: boolean; has_credentials: boolean; identifiers: Record<string, string> };
+  googleAdsConfigured?: boolean;
+  googleAdsDataSourceId?: string;
   onUpdated: () => void;
 }) {
   const [configOpen, setConfigOpen] = useState(false);
@@ -352,7 +356,8 @@ function SourceCard({
   const [toggling, setToggling] = useState(false);
   const [filterCount, setFilterCount] = useState<number | null>(null);
   const isActive = existing?.active ?? false;
-  const hasCredentials = existing?.has_credentials ?? false;
+  const isLSA = source === 'lsa';
+  const hasCredentials = isLSA ? (googleAdsConfigured ?? false) : (existing?.has_credentials ?? false);
   const canFilter = isFilterableSource(source) && hasCredentials && existing?.id;
 
   // Load filter count for filterable sources
@@ -388,7 +393,13 @@ function SourceCard({
           <div>
             <div className="text-sm font-semibold text-text-v1">{SOURCE_LABELS[source]}</div>
             <div className="text-xs text-muted-foreground mt-0.5">
-              {hasCredentials ? (
+              {isLSA ? (
+                googleAdsConfigured ? (
+                  <span className="text-v1-green">Connected via Google Ads</span>
+                ) : (
+                  <span>Requires Google Ads</span>
+                )
+              ) : hasCredentials ? (
                 <span className="text-v1-green">Connected</span>
               ) : (
                 <span>No credentials</span>
@@ -403,14 +414,22 @@ function SourceCard({
         </div>
 
         <div className="flex flex-col gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setConfigOpen(true)}
-            className="w-full"
-          >
-            Configure
-          </Button>
+          {!isLSA && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setConfigOpen(true)}
+              className="w-full"
+            >
+              Configure
+            </Button>
+          )}
+
+          {isLSA && !googleAdsConfigured && (
+            <p className="text-[11px] text-muted-foreground px-1">
+              Configure Google Ads first — LSA pulls data through the same account.
+            </p>
+          )}
 
           {canFilter && (
             <Button
@@ -472,6 +491,8 @@ export function AdminClientIntegrationsPage() {
   }
 
   const sourceMap = Object.fromEntries(data.sources.map((s) => [s.source, s]));
+  const googleAdsSource = sourceMap['google_ads'];
+  const googleAdsConfigured = googleAdsSource?.has_credentials ?? false;
 
   return (
     <>
@@ -489,6 +510,8 @@ export function AdminClientIntegrationsPage() {
             clientSlug={clientSlug!}
             source={source}
             existing={sourceMap[source]}
+            googleAdsConfigured={googleAdsConfigured}
+            googleAdsDataSourceId={googleAdsSource?.id}
             onUpdated={refetch}
           />
         ))}

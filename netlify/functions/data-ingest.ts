@@ -12,6 +12,7 @@ import { pullGSC } from './_shared/pulls/gsc';
 import { pullGoogleAds } from './_shared/pulls/google-ads';
 import { pullMeta } from './_shared/pulls/meta';
 import { pullGBP } from './_shared/pulls/gbp';
+import { pullLSA } from './_shared/pulls/lsa';
 import type { SourceFilter } from '../../src/shared/schemas/filters';
 import type { Context } from '@netlify/functions';
 
@@ -23,6 +24,7 @@ const pullFunctions: Partial<Record<SourceType, (creds: Record<string, string>, 
   google_ads: pullGoogleAds,
   meta: pullMeta,
   gbp: pullGBP,
+  lsa: pullLSA,
 };
 
 export default async (request: Request, _context: Context) => {
@@ -74,9 +76,12 @@ export default async (request: Request, _context: Context) => {
     }
 
     try {
-      const creds = await getDecryptedCredentials(clientSlug, source);
+      // LSA uses Google Ads credentials — resolve from google_ads source
+      const credSource = source === 'lsa' ? 'google_ads' : source;
+      const creds = await getDecryptedCredentials(clientSlug, credSource);
       if (!creds) {
-        results[source] = { status: 'skipped', error: 'No credentials configured' };
+        const hint = source === 'lsa' ? 'Google Ads credentials required for LSA' : 'No credentials configured';
+        results[source] = { status: 'skipped', error: hint };
         continue;
       }
 

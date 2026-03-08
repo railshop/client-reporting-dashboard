@@ -47,10 +47,11 @@ export function getDateRange(periodStart: string): { startDate: string; endDate:
   return { startDate, endDate };
 }
 
+/** Returns the same month one year prior (YoY comparison). */
 export function getPreviousDateRange(periodStart: string): { startDate: string; endDate: string } {
   const start = new Date(periodStart + 'T00:00:00');
-  const year = start.getMonth() === 0 ? start.getFullYear() - 1 : start.getFullYear();
-  const month = start.getMonth() === 0 ? 11 : start.getMonth() - 1;
+  const year = start.getFullYear() - 1;
+  const month = start.getMonth();
   const endDay = new Date(year, month + 1, 0).getDate();
 
   const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;

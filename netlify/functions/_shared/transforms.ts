@@ -214,6 +214,21 @@ function transformServiceTitan(raw: Record<string, any>): TransformResult {
   };
 }
 
+function transformLSA(raw: Record<string, any>): TransformResult {
+  const cur = raw.current || {};
+  const prv = raw.previous || {};
+
+  const kpis = [
+    { label: 'Leads', value: formatNumber(cur.leads || 0), ...calcDelta(cur.leads || 0, prv.leads || 0), color: 'default' as const },
+    { label: 'Impressions', value: formatNumber(cur.impressions || 0), ...calcDelta(cur.impressions || 0, prv.impressions || 0), color: 'default' as const },
+    { label: 'Impression → Lead', value: formatPercent(cur.impressionToLeadRate || 0), ...calcDelta(cur.impressionToLeadRate || 0, prv.impressionToLeadRate || 0), color: 'default' as const },
+    { label: 'Absolute Top Rate', value: formatPercent(cur.absoluteTopRate || 0), ...calcDelta(cur.absoluteTopRate || 0, prv.absoluteTopRate || 0), color: 'default' as const },
+    { label: 'Spend', value: '$' + (cur.spend || 0).toFixed(2), ...calcDelta(cur.spend || 0, prv.spend || 0), color: 'default' as const },
+  ];
+
+  return { kpis, tables: {} };
+}
+
 function transformGBP(raw: Record<string, any>): TransformResult {
   const cur = raw.current;
   const prv = raw.previous;
@@ -237,6 +252,7 @@ const transformFunctions: Partial<Record<SourceType, (raw: Record<string, any>) 
   meta: transformMeta,
   servicetitan: transformServiceTitan,
   gbp: transformGBP,
+  lsa: transformLSA,
 };
 
 export function transformRawData(source: SourceType, rawData: Record<string, any>): TransformResult | null {

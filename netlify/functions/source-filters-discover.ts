@@ -102,10 +102,41 @@ async function discoverServiceTitanCampaigns(credentials: Record<string, string>
   }));
 }
 
+async function discoverLSACampaigns(credentials: Record<string, string>): Promise<FilterOption[]> {
+  const { GoogleAdsApi } = await import('google-ads-api');
+  const { client_id, client_secret, developer_token, refresh_token, customer_id, manager_account_id } = credentials;
+
+  const client = new GoogleAdsApi({
+    client_id,
+    client_secret,
+    developer_token,
+  });
+
+  const customer = client.Customer({
+    customer_id: customer_id.replace(/-/g, ''),
+    login_customer_id: manager_account_id.replace(/-/g, ''),
+    refresh_token,
+  });
+
+  const rows = await customer.query(`
+    SELECT campaign.id, campaign.name, campaign.status
+    FROM campaign
+    WHERE campaign.advertising_channel_type = 'LOCAL_SERVICES'
+    ORDER BY campaign.name
+  `);
+
+  return rows.map((r: any) => ({
+    filter_type: 'campaign',
+    filter_value: String(r.campaign.id),
+    label: `${r.campaign.name} (${r.campaign.status})`,
+  }));
+}
+
 const discoverFunctions: Partial<Record<SourceType, (creds: Record<string, string>) => Promise<FilterOption[]>>> = {
   meta: discoverMetaCampaigns,
   google_ads: discoverGoogleAdsCampaigns,
   servicetitan: discoverServiceTitanCampaigns,
+  lsa: discoverLSACampaigns,
 };
 
 export default async (request: Request, _context: Context) => {
@@ -134,9 +165,12 @@ export default async (request: Request, _context: Context) => {
     return jsonResponse({ error: `Source "${source}" does not support filter discovery` }, 400);
   }
 
-  const creds = await getDecryptedCredentials(clientSlug, source);
+  // LSA uses Google Ads credentials
+  const credSource = source === 'lsa' ? 'google_ads' : source;
+  const creds = await getDecryptedCredentials(clientSlug, credSource as SourceType);
   if (!creds) {
-    return jsonResponse({ error: 'No credentials configured for this source' }, 400);
+    const hint = source === 'lsa' ? 'Google Ads credentials required for LSA' : 'No credentials configured for this source';
+    return jsonResponse({ error: hint }, 400);
   }
 
   try {

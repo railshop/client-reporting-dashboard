@@ -3,8 +3,8 @@ import { z } from 'zod';
 export const kpiItemSchema = z.object({
   label: z.string(),
   value: z.string(),
-  delta: z.string(),
-  direction: z.enum(['up', 'down', 'neutral']),
+  delta: z.string().optional(),
+  direction: z.enum(['up', 'down', 'neutral']).optional(),
   color: z.enum(['blue', 'green', 'gold', 'default']).default('default'),
 });
 

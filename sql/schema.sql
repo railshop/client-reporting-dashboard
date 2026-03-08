@@ -99,15 +99,16 @@ CREATE TABLE report_periods (
 -- ============================================================
 
 CREATE TABLE report_sections (
-  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  report_period_id UUID NOT NULL REFERENCES report_periods(id) ON DELETE CASCADE,
-  source           source_type NOT NULL,
-  kpis             JSONB NOT NULL DEFAULT '[]',
-  tables           JSONB NOT NULL DEFAULT '[]',
-  railshop_notes   TEXT,
-  next_priorities  TEXT[],
-  created_at       TIMESTAMPTZ DEFAULT now(),
-  updated_at       TIMESTAMPTZ DEFAULT now(),
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  report_period_id      UUID NOT NULL REFERENCES report_periods(id) ON DELETE CASCADE,
+  source                source_type NOT NULL,
+  kpis                  JSONB NOT NULL DEFAULT '[]',
+  tables                JSONB NOT NULL DEFAULT '[]',
+  servicetitan_blended  JSONB,
+  railshop_notes        TEXT,
+  next_priorities       TEXT[],
+  created_at            TIMESTAMPTZ DEFAULT now(),
+  updated_at            TIMESTAMPTZ DEFAULT now(),
   UNIQUE(report_period_id, source)
 );
 

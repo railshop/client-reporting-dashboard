@@ -119,6 +119,7 @@ export default async (request: Request, _context: Context) => {
     // ── Step 1: Mechanical transforms ──
     // Run transforms and write KPIs/tables/campaigns to report_sections
     const mechanicalSections: Array<{ source: string; kpis: any[]; tables: Record<string, any>; campaigns?: any[] }> = [];
+    let channelRollups: Record<string, any> | undefined;
 
     for (const ingestion of ingestions) {
       const source = ingestion.source as SourceType;
@@ -133,11 +134,10 @@ export default async (request: Request, _context: Context) => {
         campaigns: data.campaigns,
       });
 
-      // Include channel rollups in tables JSONB for ServiceTitan
-      const tablesToStore = {
-        ...(data.tables || {}),
-        ...(data.channelRollups ? { _channelRollups: data.channelRollups } : {}),
-      };
+      // Capture channel rollups from ServiceTitan
+      if (data.channelRollups) {
+        channelRollups = data.channelRollups;
+      }
 
       // Upsert section with mechanical data (KPIs, tables, campaigns)
       const sectionResult = await sql`
@@ -146,12 +146,12 @@ export default async (request: Request, _context: Context) => {
           ${reportPeriod.id},
           ${source},
           ${JSON.stringify(data.kpis)}::jsonb,
-          ${JSON.stringify(tablesToStore)}::jsonb
+          ${JSON.stringify(data.tables || {})}::jsonb
         )
         ON CONFLICT (report_period_id, source)
         DO UPDATE SET
           kpis = ${JSON.stringify(data.kpis)}::jsonb,
-          tables = ${JSON.stringify(tablesToStore)}::jsonb,
+          tables = ${JSON.stringify(data.tables || {})}::jsonb,
           updated_at = now()
         RETURNING id
       `;
@@ -166,6 +166,17 @@ export default async (request: Request, _context: Context) => {
             VALUES (${sectionId}, ${c.campaign_name}, ${c.campaign_type || null}, ${JSON.stringify(c.metrics)}::jsonb)
           `;
         }
+      }
+    }
+
+    // Distribute ServiceTitan channel rollups to matching source sections
+    if (channelRollups) {
+      for (const [channel, rollup] of Object.entries(channelRollups)) {
+        await sql`
+          UPDATE report_sections
+          SET servicetitan_blended = ${JSON.stringify(rollup)}::jsonb, updated_at = now()
+          WHERE report_period_id = ${reportPeriod.id} AND source = ${channel}
+        `;
       }
     }
 

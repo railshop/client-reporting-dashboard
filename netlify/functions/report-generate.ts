@@ -68,6 +68,7 @@ export default async (request: Request, _context: Context) => {
   }
 
   const results: Record<string, { status: string; error?: string }> = {};
+  let channelRollups: Record<string, any> | undefined;
 
   for (const ingestion of ingestions) {
     const source = ingestion.source as SourceType;
@@ -80,11 +81,10 @@ export default async (request: Request, _context: Context) => {
         continue;
       }
 
-      // Include channel rollups in tables JSONB for ServiceTitan
-      const tablesToStore = {
-        ...(data.tables || {}),
-        ...(data.channelRollups ? { _channelRollups: data.channelRollups } : {}),
-      };
+      // Capture channel rollups from ServiceTitan for distributing to source sections
+      if (data.channelRollups) {
+        channelRollups = data.channelRollups;
+      }
 
       // Upsert section
       const sectionResult = await sql`
@@ -93,12 +93,12 @@ export default async (request: Request, _context: Context) => {
           ${reportPeriod.id},
           ${source},
           ${JSON.stringify(data.kpis)}::jsonb,
-          ${JSON.stringify(tablesToStore)}::jsonb
+          ${JSON.stringify(data.tables || {})}::jsonb
         )
         ON CONFLICT (report_period_id, source)
         DO UPDATE SET
           kpis = ${JSON.stringify(data.kpis)}::jsonb,
-          tables = ${JSON.stringify(tablesToStore)}::jsonb,
+          tables = ${JSON.stringify(data.tables || {})}::jsonb,
           updated_at = now()
         RETURNING id
       `;
@@ -118,6 +118,17 @@ export default async (request: Request, _context: Context) => {
       results[source] = { status: 'success' };
     } catch (err: any) {
       results[source] = { status: 'error', error: err.message || 'Unknown error' };
+    }
+  }
+
+  // Distribute ServiceTitan channel rollups to matching source sections
+  if (channelRollups) {
+    for (const [channel, rollup] of Object.entries(channelRollups)) {
+      await sql`
+        UPDATE report_sections
+        SET servicetitan_blended = ${JSON.stringify(rollup)}::jsonb, updated_at = now()
+        WHERE report_period_id = ${reportPeriod.id} AND source = ${channel}
+      `;
     }
   }
 

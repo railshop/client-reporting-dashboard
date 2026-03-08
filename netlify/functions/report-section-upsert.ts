@@ -24,7 +24,7 @@ export default async (request: Request, _context: Context) => {
   if (payload.role !== 'admin') return forbidden();
 
   const body = await request.json();
-  const { reportPeriodId, source, kpis, tables, railshop_notes, next_priorities } = body;
+  const { reportPeriodId, source, kpis, tables, railshop_notes, next_priorities, servicetitan_blended } = body;
 
   if (!reportPeriodId || !source) {
     return jsonResponse({ error: 'reportPeriodId and source required' }, 400);
@@ -48,12 +48,13 @@ export default async (request: Request, _context: Context) => {
   }
 
   const result = await sql`
-    INSERT INTO report_sections (report_period_id, source, kpis, tables, railshop_notes, next_priorities)
+    INSERT INTO report_sections (report_period_id, source, kpis, tables, servicetitan_blended, railshop_notes, next_priorities)
     VALUES (
       ${reportPeriodId},
       ${source},
       ${kpis !== undefined ? JSON.stringify(kpis) : '[]'}::jsonb,
       ${tables !== undefined ? JSON.stringify(tables) : '{}'}::jsonb,
+      ${servicetitan_blended !== undefined ? JSON.stringify(servicetitan_blended) : null}::jsonb,
       ${railshop_notes ?? null},
       ${next_priorities ?? null}
     )
@@ -61,10 +62,11 @@ export default async (request: Request, _context: Context) => {
     DO UPDATE SET
       kpis = COALESCE(${kpis !== undefined ? JSON.stringify(kpis) : null}::jsonb, report_sections.kpis),
       tables = COALESCE(${tables !== undefined ? JSON.stringify(tables) : null}::jsonb, report_sections.tables),
+      servicetitan_blended = COALESCE(${servicetitan_blended !== undefined ? JSON.stringify(servicetitan_blended) : null}::jsonb, report_sections.servicetitan_blended),
       railshop_notes = COALESCE(${railshop_notes ?? null}, report_sections.railshop_notes),
       next_priorities = COALESCE(${next_priorities ?? null}, report_sections.next_priorities),
       updated_at = now()
-    RETURNING id, source, kpis, tables, railshop_notes, next_priorities
+    RETURNING id, source, kpis, tables, servicetitan_blended, railshop_notes, next_priorities
   `;
 
   return jsonResponse({ section: result[0] });

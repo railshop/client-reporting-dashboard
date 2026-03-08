@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { KpiItem, TableDef, Overview } from '@/shared/schemas/common';
-import type { ReportSection } from '@/types/report';
+import type { ReportSection, ServiceTitanBlended } from '@/types/report';
 
 const INPUT_CLS =
   'w-full bg-surface-2 border border-border-v1 rounded-lg px-3 py-1.5 text-[12px] text-text-v1 placeholder:text-text-3 focus:outline-none focus:border-blue transition-colors';
@@ -514,6 +514,7 @@ function SectionEditor({
   const [expanded, setExpanded] = useState(!!section);
   const [kpis, setKpis] = useState<KpiItem[]>(section?.kpis ?? []);
   const [tables, setTables] = useState<Record<string, TableDef>>(section?.tables ?? {});
+  const [blended, setBlended] = useState<ServiceTitanBlended | null>(section?.servicetitan_blended ?? null);
   const [notes, setNotes] = useState(section?.railshop_notes ?? '');
   const [priorities, setPriorities] = useState<string[]>(section?.next_priorities ?? []);
   const [saving, setSaving] = useState(false);
@@ -524,6 +525,7 @@ function SectionEditor({
   useEffect(() => {
     setKpis(section?.kpis ?? []);
     setTables(section?.tables ?? {});
+    setBlended(section?.servicetitan_blended ?? null);
     setNotes(section?.railshop_notes ?? '');
     setPriorities(section?.next_priorities ?? []);
   }, [section]);
@@ -559,6 +561,7 @@ function SectionEditor({
           source,
           kpis,
           tables,
+          servicetitan_blended: blended,
           railshop_notes: notes,
           next_priorities: priorities,
         }),
@@ -629,6 +632,16 @@ function SectionEditor({
           <div className="mb-4">
             <KpiEditor kpis={kpis} onChange={setKpis} />
           </div>
+
+          {/* ServiceTitan Blended KPIs (for source tabs that have ST data) */}
+          {source !== 'servicetitan' && blended && (
+            <div className="mb-4 bg-surface-2/50 border border-border-v1 rounded-lg px-4 py-3">
+              <div className="font-mono text-[10px] text-text-3 tracking-[0.05em] mb-2">
+                SERVICETITAN BLENDED
+              </div>
+              <KpiEditor kpis={blended.kpis} onChange={(newKpis) => setBlended({ ...blended, kpis: newKpis })} />
+            </div>
+          )}
 
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">

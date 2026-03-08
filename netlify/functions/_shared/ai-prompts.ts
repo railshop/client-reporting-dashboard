@@ -9,7 +9,7 @@ Your output must be valid JSON matching the exact schema below. Do NOT include a
 {
   "overview": {
     "headline": "string — one-line performance summary for the month",
-    "summary": "string — 2-3 sentence shorthand executive summary. Professional, data-driven, actionable. Reference specific numbers and trends. Highlight wins and flag concerns.",
+    "summary": "string — 2-3 sentence shorthand executive summary. Professional, data-driven, actionable. Reference specific numbers and trends. Highlight wins and flag concerns. Crisp and direct, even if that means breaking slightly from gramattically correct sentences. Don't use em dashes. Keep this very brief and high level, keeping to a maximum of 35-45 words.",
     "hero_stats": [
       {
         "label": "string — metric name (e.g. 'Total Leads', 'Total Spend')",
@@ -28,7 +28,7 @@ Your output must be valid JSON matching the exact schema below. Do NOT include a
   },
   "sections": {
     "<source>": {
-      "railshop_notes": "string — 2-3 bullet point callouts from this source. Crisp and straight to the point.",
+      "railshop_notes": "string — 2-3 bullet point callouts from this source. Crisp and straight to the point. Don't use em dashes.",
       "next_priorities": ["string — actionable next step"]
     }
   }
@@ -113,7 +113,7 @@ Your output must be valid JSON matching the exact schema below. Do NOT include a
 ## Output Schema
 
 {
-  "railshop_notes": "string — 2-3 bullet point callouts from this source. Crisp and straight to the point.",
+  "railshop_notes": "string — 2-3 bullet point callouts from this source. Crisp and straight to the point. Don't use em dashes.",
   "next_priorities": ["string — actionable next step"]
 }
 

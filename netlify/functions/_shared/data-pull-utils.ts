@@ -72,6 +72,13 @@ export function formatPercent(n: number): string {
   return n.toFixed(1) + '%';
 }
 
+/** Format dollars for KPI cards: rounds to whole dollars, compact for large values */
+export function formatDollars(v: number): string {
+  if (v >= 1_000_000) return '$' + (v / 1_000_000).toFixed(1) + 'M';
+  if (v >= 10_000) return '$' + (v / 1_000).toFixed(1) + 'k';
+  return '$' + Math.round(v).toLocaleString('en-US');
+}
+
 export function calcDelta(current: number, previous: number): { delta: string; direction: 'up' | 'down' | 'neutral' } {
   if (previous === 0) return { delta: 'N/A', direction: 'neutral' };
   const pct = ((current - previous) / previous) * 100;

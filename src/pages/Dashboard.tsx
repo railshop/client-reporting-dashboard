@@ -194,6 +194,7 @@ export function DashboardPage() {
               kpis={section.kpis}
               tables={section.tables}
               railshopNotes={section.railshop_notes}
+              servicetitanBlended={section.servicetitan_blended}
             />
           </div>
         ))}

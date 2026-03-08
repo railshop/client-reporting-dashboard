@@ -9,11 +9,14 @@ import {
   jsonResponse,
 } from './_shared/auth-middleware';
 import { AI_REPORT_SYSTEM_PROMPT, buildRawDataContext } from './_shared/ai-prompts';
-import { kpiItemSchema, tableDefSchema } from '../../src/shared/schemas/common';
+import { transformRawData } from './_shared/transforms';
+import { kpiItemSchema } from '../../src/shared/schemas/common';
 import { getPreviousDateRange } from './_shared/data-pull-utils';
 import type { Context } from '@netlify/functions';
 
-// Validation schema for Claude's full report output
+type SourceType = 'ga4' | 'gsc' | 'google_ads' | 'meta' | 'lsa' | 'servicetitan' | 'gbp';
+
+// Validation schema for Claude's narrative-only output
 const aiReportOutputSchema = z.object({
   overview: z.object({
     headline: z.string().optional(),
@@ -25,15 +28,7 @@ const aiReportOutputSchema = z.object({
       spend: z.string(),
     })).optional(),
   }),
-  sections: z.array(z.object({
-    source: z.string(),
-    kpis: z.array(kpiItemSchema),
-    tables: z.record(z.string(), tableDefSchema).default({}),
-    campaigns: z.array(z.object({
-      campaign_name: z.string(),
-      campaign_type: z.string(),
-      metrics: z.record(z.string(), z.union([z.string(), z.number()])),
-    })).default([]),
+  sections: z.record(z.string(), z.object({
     railshop_notes: z.string().optional(),
     next_priorities: z.array(z.string()).default([]),
   })),
@@ -98,11 +93,8 @@ export default async (request: Request, _context: Context) => {
   `;
 
   // --- Background work starts here ---
-  // (Netlify background functions return 202 automatically,
-  //  so everything below runs asynchronously)
 
   try {
-    // Set status to generating
     await sql`
       UPDATE report_periods SET ai_status = 'generating', updated_at = now()
       WHERE id = ${reportPeriod.id}
@@ -124,7 +116,61 @@ export default async (request: Request, _context: Context) => {
       return new Response();
     }
 
-    // Load previous period raw_ingestions for comparison
+    // ── Step 1: Mechanical transforms ──
+    // Run transforms and write KPIs/tables/campaigns to report_sections
+    const mechanicalSections: Array<{ source: string; kpis: any[]; tables: Record<string, any>; campaigns?: any[] }> = [];
+
+    for (const ingestion of ingestions) {
+      const source = ingestion.source as SourceType;
+      const rawData = ingestion.raw_data;
+      const data = transformRawData(source, rawData);
+      if (!data) continue;
+
+      mechanicalSections.push({
+        source,
+        kpis: data.kpis,
+        tables: data.tables,
+        campaigns: data.campaigns,
+      });
+
+      // Include channel rollups in tables JSONB for ServiceTitan
+      const tablesToStore = {
+        ...(data.tables || {}),
+        ...(data.channelRollups ? { _channelRollups: data.channelRollups } : {}),
+      };
+
+      // Upsert section with mechanical data (KPIs, tables, campaigns)
+      const sectionResult = await sql`
+        INSERT INTO report_sections (report_period_id, source, kpis, tables)
+        VALUES (
+          ${reportPeriod.id},
+          ${source},
+          ${JSON.stringify(data.kpis)}::jsonb,
+          ${JSON.stringify(tablesToStore)}::jsonb
+        )
+        ON CONFLICT (report_period_id, source)
+        DO UPDATE SET
+          kpis = ${JSON.stringify(data.kpis)}::jsonb,
+          tables = ${JSON.stringify(tablesToStore)}::jsonb,
+          updated_at = now()
+        RETURNING id
+      `;
+
+      // Upsert campaigns if present
+      if (data.campaigns?.length) {
+        const sectionId = sectionResult[0].id;
+        await sql`DELETE FROM campaign_metrics WHERE report_section_id = ${sectionId}`;
+        for (const c of data.campaigns) {
+          await sql`
+            INSERT INTO campaign_metrics (report_section_id, campaign_name, campaign_type, metrics)
+            VALUES (${sectionId}, ${c.campaign_name}, ${c.campaign_type || null}, ${JSON.stringify(c.metrics)}::jsonb)
+          `;
+        }
+      }
+    }
+
+    // ── Step 2: AI narrative generation ──
+    // Load previous period raw_ingestions for Claude's context
     const prev = getPreviousDateRange(periodStart);
     const previousIngestions = await sql`
       SELECT source, raw_data
@@ -132,13 +178,14 @@ export default async (request: Request, _context: Context) => {
       WHERE client_id = ${clientId} AND period_start = ${prev.startDate}
     `;
 
-    // Build data context for Claude
+    // Build data context including mechanical KPIs for Claude to reference
     const dataContext = buildRawDataContext(
       ingestions as any[],
-      previousIngestions as any[]
+      previousIngestions as any[],
+      mechanicalSections
     );
 
-    let userMessage = `Generate a monthly performance report for ${clientName}.\nPeriod: ${periodStart}\n\nRaw data:\n${dataContext}`;
+    let userMessage = `Generate the narrative portions of the monthly performance report for ${clientName}.\nPeriod: ${periodStart}\n\nRaw data and computed KPIs:\n${dataContext}`;
     if (prompt) {
       userMessage += `\n\nAdmin guidance: ${prompt}`;
     }
@@ -146,7 +193,7 @@ export default async (request: Request, _context: Context) => {
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 8192,
+      max_tokens: 4096,
       system: AI_REPORT_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
     });
@@ -157,9 +204,10 @@ export default async (request: Request, _context: Context) => {
     // Parse JSON from Claude's response
     let parsed: any;
     try {
-      // Try extracting JSON from markdown code fences first
-      const fenceMatch = rawOutput.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
-      const jsonStr = fenceMatch ? fenceMatch[1].trim() : rawOutput.trim();
+      let jsonStr = rawOutput.trim();
+      jsonStr = jsonStr.replace(/^```(?:json)?\s*\n?/, '');
+      jsonStr = jsonStr.replace(/\n?```\s*$/, '');
+      jsonStr = jsonStr.trim();
       parsed = JSON.parse(jsonStr);
     } catch (parseErr: any) {
       console.error('[ai-background] JSON parse failed. First 500 chars:', rawOutput.slice(0, 500));
@@ -184,7 +232,7 @@ export default async (request: Request, _context: Context) => {
 
     const reportData = validation.data;
 
-    // Write overview
+    // Write overview (AI-generated)
     await sql`
       UPDATE report_periods SET
         overview = ${JSON.stringify(reportData.overview)}::jsonb,
@@ -192,39 +240,15 @@ export default async (request: Request, _context: Context) => {
       WHERE id = ${reportPeriod.id}
     `;
 
-    // Write sections
-    for (const section of reportData.sections) {
-      const sectionResult = await sql`
-        INSERT INTO report_sections (report_period_id, source, kpis, tables, railshop_notes, next_priorities)
-        VALUES (
-          ${reportPeriod.id},
-          ${section.source},
-          ${JSON.stringify(section.kpis)}::jsonb,
-          ${JSON.stringify(section.tables)}::jsonb,
-          ${section.railshop_notes || null},
-          ${section.next_priorities.length > 0 ? section.next_priorities : null}
-        )
-        ON CONFLICT (report_period_id, source)
-        DO UPDATE SET
-          kpis = ${JSON.stringify(section.kpis)}::jsonb,
-          tables = ${JSON.stringify(section.tables)}::jsonb,
-          railshop_notes = COALESCE(${section.railshop_notes || null}, report_sections.railshop_notes),
-          next_priorities = COALESCE(${section.next_priorities.length > 0 ? section.next_priorities : null}, report_sections.next_priorities),
+    // Write AI narrative (notes + priorities) to existing sections — do NOT overwrite KPIs/tables
+    for (const [source, narrative] of Object.entries(reportData.sections)) {
+      await sql`
+        UPDATE report_sections SET
+          railshop_notes = ${narrative.railshop_notes || null},
+          next_priorities = ${narrative.next_priorities.length > 0 ? narrative.next_priorities : null},
           updated_at = now()
-        RETURNING id
+        WHERE report_period_id = ${reportPeriod.id} AND source = ${source}
       `;
-
-      // Write campaigns if present
-      if (section.campaigns.length > 0) {
-        const sectionId = sectionResult[0].id;
-        await sql`DELETE FROM campaign_metrics WHERE report_section_id = ${sectionId}`;
-        for (const c of section.campaigns) {
-          await sql`
-            INSERT INTO campaign_metrics (report_section_id, campaign_name, campaign_type, metrics)
-            VALUES (${sectionId}, ${c.campaign_name}, ${c.campaign_type || null}, ${JSON.stringify(c.metrics)}::jsonb)
-          `;
-        }
-      }
     }
 
     // Mark complete

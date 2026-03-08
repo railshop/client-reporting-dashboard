@@ -34,58 +34,77 @@ export async function pullGA4(
       ],
       metrics: [
         { name: 'sessions' },
-        { name: 'totalUsers' },
         { name: 'newUsers' },
-        { name: 'screenPageViews' },
-        { name: 'averageSessionDuration' },
-        { name: 'bounceRate' },
-        { name: 'conversions' },
+        // TODO: Re-enable conversions once meaningful conversion events are
+        // consistently configured across all client GA4 properties. Without
+        // that, the number can be misleading (often zero or tracking defaults).
+        // { name: 'conversions' },
       ],
     },
   });
 
   const rows = metricsResponse.data.rows || [];
-  const current = rows[0]?.metricValues?.map((v) => Number(v.value || 0)) || [0, 0, 0, 0, 0, 0, 0];
-  const previous = rows[1]?.metricValues?.map((v) => Number(v.value || 0)) || [0, 0, 0, 0, 0, 0, 0];
+  const curMetrics = rows[0]?.metricValues?.map((v) => Number(v.value || 0)) || [0, 0];
+  const prevMetrics = rows[1]?.metricValues?.map((v) => Number(v.value || 0)) || [0, 0];
 
-  const metricLabels = ['Sessions', 'Users', 'New Users', 'Pageviews', 'Avg Duration', 'Bounce Rate', 'Conversions'];
-  const kpis = metricLabels.map((label, i) => {
-    const { delta, direction } = calcDelta(current[i], previous[i]);
-    let value: string;
-    if (label === 'Avg Duration') {
-      const mins = Math.floor(current[i] / 60);
-      const secs = Math.round(current[i] % 60);
-      value = `${mins}m ${secs}s`;
-    } else if (label === 'Bounce Rate') {
-      value = formatPercent(current[i] * 100);
-    } else {
-      value = formatNumber(current[i]);
+  // Sessions by channel group — separate queries for current and previous period
+  // (GA4 multi-date-range with dimensions duplicates rows per range rather than
+  //  adding extra metric columns, making indexing unreliable)
+  const ORGANIC_CHANNELS = ['Organic Search', 'Organic Social', 'Organic Video', 'Organic Shopping'];
+  const PAID_CHANNELS = ['Paid Search', 'Paid Social', 'Paid Video', 'Paid Shopping', 'Display', 'Paid Other'];
+  const DIRECT_CHANNELS = ['Direct'];
+
+  function bucketChannelSessions(channelRows: any[]) {
+    let organic = 0, direct = 0, paid = 0;
+    for (const r of channelRows) {
+      const channel = r.dimensionValues?.[0]?.value || '';
+      const sessions = Number(r.metricValues?.[0]?.value || 0);
+      if (ORGANIC_CHANNELS.includes(channel)) organic += sessions;
+      else if (DIRECT_CHANNELS.includes(channel)) direct += sessions;
+      else if (PAID_CHANNELS.includes(channel)) paid += sessions;
     }
-    return { label, value, delta, direction, color: 'default' as const };
-  });
+    return { organic, direct, paid };
+  }
 
-  // Channel breakdown
-  const channelResponse = await analyticsData.properties.runReport({
+  const curChannelResponse = await analyticsData.properties.runReport({
     property: `properties/${property_id}`,
     requestBody: {
       dateRanges: [{ startDate, endDate }],
       dimensions: [{ name: 'sessionDefaultChannelGroup' }],
-      metrics: [
-        { name: 'sessions' },
-        { name: 'totalUsers' },
-        { name: 'conversions' },
-      ],
-      orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
-      limit: 10,
+      metrics: [{ name: 'sessions' }],
     },
   });
 
-  const channelRows = (channelResponse.data.rows || []).map((r) => ({
-    channel: r.dimensionValues?.[0]?.value || '',
-    sessions: r.metricValues?.[0]?.value || '0',
-    users: r.metricValues?.[1]?.value || '0',
-    conversions: r.metricValues?.[2]?.value || '0',
-  }));
+  const prevChannelResponse = await analyticsData.properties.runReport({
+    property: `properties/${property_id}`,
+    requestBody: {
+      dateRanges: [{ startDate: prev.startDate, endDate: prev.endDate }],
+      dimensions: [{ name: 'sessionDefaultChannelGroup' }],
+      metrics: [{ name: 'sessions' }],
+    },
+  });
+
+  const curChannelRows = curChannelResponse.data.rows || [];
+  const prevChannelRows = prevChannelResponse.data.rows || [];
+  const curChannels = bucketChannelSessions(curChannelRows);
+  const prevChannels = bucketChannelSessions(prevChannelRows);
+
+  const kpis = [
+    { label: 'New Users', value: formatNumber(curMetrics[1]), ...calcDelta(curMetrics[1], prevMetrics[1]), color: 'default' as const },
+    { label: 'Sessions', value: formatNumber(curMetrics[0]), ...calcDelta(curMetrics[0], prevMetrics[0]), color: 'default' as const },
+    { label: 'Organic Sessions', value: formatNumber(curChannels.organic), ...calcDelta(curChannels.organic, prevChannels.organic), color: 'default' as const },
+    { label: 'Direct Sessions', value: formatNumber(curChannels.direct), ...calcDelta(curChannels.direct, prevChannels.direct), color: 'default' as const },
+    { label: 'Paid Sessions', value: formatNumber(curChannels.paid), ...calcDelta(curChannels.paid, prevChannels.paid), color: 'default' as const },
+  ];
+
+  // Channel breakdown table (current period only)
+  const channelBreakdownRows = curChannelRows
+    .map((r: any) => ({
+      channel: r.dimensionValues?.[0]?.value || '',
+      sessions: r.metricValues?.[0]?.value || '0',
+    }))
+    .sort((a: any, b: any) => Number(b.sessions) - Number(a.sessions))
+    .slice(0, 10);
 
   // Top landing pages
   const pagesResponse = await analyticsData.properties.runReport({
@@ -95,7 +114,6 @@ export async function pullGA4(
       dimensions: [{ name: 'landingPagePlusQueryString' }],
       metrics: [
         { name: 'sessions' },
-        { name: 'conversions' },
       ],
       orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
       limit: 10,
@@ -105,30 +123,27 @@ export async function pullGA4(
   const pageRows = (pagesResponse.data.rows || []).map((r) => ({
     page: r.dimensionValues?.[0]?.value || '',
     sessions: r.metricValues?.[0]?.value || '0',
-    conversions: r.metricValues?.[1]?.value || '0',
   }));
 
   return {
     raw: {
       current: {
-        sessions: current[0],
-        users: current[1],
-        newUsers: current[2],
-        pageviews: current[3],
-        avgSessionDuration: current[4],
-        bounceRate: current[5],
-        conversions: current[6],
+        sessions: curMetrics[0],
+        newUsers: curMetrics[1],
+        organicSessions: curChannels.organic,
+        directSessions: curChannels.direct,
+        paidSessions: curChannels.paid,
+        // TODO: Add conversions once GA4 conversion events are configured per client
+        // conversions: ...,
       },
       previous: {
-        sessions: previous[0],
-        users: previous[1],
-        newUsers: previous[2],
-        pageviews: previous[3],
-        avgSessionDuration: previous[4],
-        bounceRate: previous[5],
-        conversions: previous[6],
+        sessions: prevMetrics[0],
+        newUsers: prevMetrics[1],
+        organicSessions: prevChannels.organic,
+        directSessions: prevChannels.direct,
+        paidSessions: prevChannels.paid,
       },
-      channelBreakdown: channelRows,
+      channelBreakdown: channelBreakdownRows,
       topLandingPages: pageRows,
     },
     kpis,
@@ -138,17 +153,14 @@ export async function pullGA4(
         columns: [
           { key: 'channel', label: 'Channel', align: 'left' },
           { key: 'sessions', label: 'Sessions', align: 'right' },
-          { key: 'users', label: 'Users', align: 'right' },
-          { key: 'conversions', label: 'Conversions', align: 'right' },
         ],
-        rows: channelRows,
+        rows: channelBreakdownRows,
       },
       topLandingPages: {
         title: 'Top Landing Pages',
         columns: [
           { key: 'page', label: 'Page', align: 'left' },
           { key: 'sessions', label: 'Sessions', align: 'right' },
-          { key: 'conversions', label: 'Conversions', align: 'right' },
         ],
         rows: pageRows,
       },

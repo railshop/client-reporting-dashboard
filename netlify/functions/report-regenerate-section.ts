@@ -9,18 +9,10 @@ import {
   jsonResponse,
 } from './_shared/auth-middleware';
 import { AI_SECTION_SYSTEM_PROMPT, buildSectionDataContext } from './_shared/ai-prompts';
-import { kpiItemSchema, tableDefSchema } from '../../src/shared/schemas/common';
 import { SOURCE_LABELS, type SourceType } from '../../src/shared/schemas/sources';
 import type { Context } from '@netlify/functions';
 
 const aiSectionOutputSchema = z.object({
-  kpis: z.array(kpiItemSchema),
-  tables: z.record(z.string(), tableDefSchema).default({}),
-  campaigns: z.array(z.object({
-    campaign_name: z.string(),
-    campaign_type: z.string(),
-    metrics: z.record(z.string(), z.union([z.string(), z.number()])),
-  })).default([]),
   railshop_notes: z.string().optional(),
   next_priorities: z.array(z.string()).default([]),
 });
@@ -72,25 +64,41 @@ export default async (request: Request, _context: Context) => {
     return jsonResponse({ error: `No raw data found for ${source}` }, 400);
   }
 
-  // Load previous period raw data for comparison
+  // Load previous period raw data (YoY)
   const prevDate = new Date(period_start + 'T00:00:00');
-  const prevYear = prevDate.getMonth() === 0 ? prevDate.getFullYear() - 1 : prevDate.getFullYear();
-  const prevMonth = prevDate.getMonth() === 0 ? 12 : prevDate.getMonth();
-  const prevPeriodStart = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
+  const prevYear = prevDate.getFullYear() - 1;
+  const prevMonth = prevDate.getMonth();
+  const prevPeriodStart = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}-01`;
 
   const prevIngestions = await sql`
     SELECT raw_data FROM raw_ingestions
     WHERE client_id = ${client_id} AND source = ${source} AND period_start = ${prevPeriodStart}
   `;
 
+  // Load existing mechanical KPIs + campaigns for context
+  const existingSection = await sql`
+    SELECT rs.kpis, cm.campaigns
+    FROM report_sections rs
+    LEFT JOIN LATERAL (
+      SELECT jsonb_agg(jsonb_build_object('campaign_name', cm.campaign_name, 'campaign_type', cm.campaign_type, 'metrics', cm.metrics)) as campaigns
+      FROM campaign_metrics cm WHERE cm.report_section_id = rs.id
+    ) cm ON true
+    WHERE rs.report_period_id = ${reportPeriodId} AND rs.source = ${source}
+  `;
+
+  const mechanicalKpis = existingSection[0]?.kpis;
+  const mechanicalCampaigns = existingSection[0]?.campaigns;
+
   const sourceLabel = SOURCE_LABELS[source as SourceType] || source;
   const dataContext = buildSectionDataContext(
     source,
     ingestions[0].raw_data,
-    prevIngestions[0]?.raw_data
+    prevIngestions[0]?.raw_data,
+    mechanicalKpis,
+    mechanicalCampaigns
   );
 
-  let userMessage = `Generate the ${sourceLabel} section for ${client_name}'s monthly report.\nPeriod: ${period_start}\n\n${dataContext}`;
+  let userMessage = `Generate the narrative analysis for the ${sourceLabel} section of ${client_name}'s monthly report.\nPeriod: ${period_start}\n\n${dataContext}`;
   if (prompt) {
     userMessage += `\n\nAdmin guidance: ${prompt}`;
   }
@@ -99,7 +107,7 @@ export default async (request: Request, _context: Context) => {
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
+      max_tokens: 2048,
       system: AI_SECTION_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
     });
@@ -109,7 +117,10 @@ export default async (request: Request, _context: Context) => {
 
     let parsed: any;
     try {
-      const jsonStr = rawOutput.replace(/^```json?\s*\n?/m, '').replace(/\n?```\s*$/m, '').trim();
+      let jsonStr = rawOutput.trim();
+      jsonStr = jsonStr.replace(/^```(?:json)?\s*\n?/, '');
+      jsonStr = jsonStr.replace(/\n?```\s*$/, '');
+      jsonStr = jsonStr.trim();
       parsed = JSON.parse(jsonStr);
     } catch {
       return jsonResponse({ error: 'Claude returned invalid JSON', rawOutput }, 422);
@@ -124,40 +135,16 @@ export default async (request: Request, _context: Context) => {
       }, 422);
     }
 
-    const section = validation.data;
+    const narrative = validation.data;
 
-    // Upsert section
-    const sectionResult = await sql`
-      INSERT INTO report_sections (report_period_id, source, kpis, tables, railshop_notes, next_priorities)
-      VALUES (
-        ${reportPeriodId},
-        ${source},
-        ${JSON.stringify(section.kpis)}::jsonb,
-        ${JSON.stringify(section.tables)}::jsonb,
-        ${section.railshop_notes || null},
-        ${section.next_priorities.length > 0 ? section.next_priorities : null}
-      )
-      ON CONFLICT (report_period_id, source)
-      DO UPDATE SET
-        kpis = ${JSON.stringify(section.kpis)}::jsonb,
-        tables = ${JSON.stringify(section.tables)}::jsonb,
-        railshop_notes = ${section.railshop_notes || null},
-        next_priorities = ${section.next_priorities.length > 0 ? section.next_priorities : null},
+    // Update ONLY notes + priorities — do NOT overwrite KPIs/tables
+    await sql`
+      UPDATE report_sections SET
+        railshop_notes = ${narrative.railshop_notes || null},
+        next_priorities = ${narrative.next_priorities.length > 0 ? narrative.next_priorities : null},
         updated_at = now()
-      RETURNING id
+      WHERE report_period_id = ${reportPeriodId} AND source = ${source}
     `;
-
-    // Update campaigns
-    if (section.campaigns.length > 0) {
-      const sectionId = sectionResult[0].id;
-      await sql`DELETE FROM campaign_metrics WHERE report_section_id = ${sectionId}`;
-      for (const c of section.campaigns) {
-        await sql`
-          INSERT INTO campaign_metrics (report_section_id, campaign_name, campaign_type, metrics)
-          VALUES (${sectionId}, ${c.campaign_name}, ${c.campaign_type || null}, ${JSON.stringify(c.metrics)}::jsonb)
-        `;
-      }
-    }
 
     return jsonResponse({ status: 'success', source });
   } catch (err: any) {

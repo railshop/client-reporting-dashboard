@@ -1,5 +1,5 @@
 import { GoogleAdsApi } from 'google-ads-api';
-import { getDateRange, getPreviousDateRange, formatNumber, formatPercent, calcDelta } from '../data-pull-utils';
+import { getDateRange, getPreviousDateRange, formatNumber, formatPercent, formatDollars, calcDelta } from '../data-pull-utils';
 import type { SourceFilter } from '../../../../src/shared/schemas/filters';
 
 interface LSAResult {
@@ -131,7 +131,7 @@ export async function pullLSA(
     { label: 'Impressions', value: formatNumber(totalImpressions), ...calcDelta(totalImpressions, prevImpressions), color: 'default' as const },
     { label: 'Impression → Lead', value: formatPercent(impressionToLeadRate), ...calcDelta(impressionToLeadRate, prevImprToLead), color: 'default' as const },
     { label: 'Absolute Top Rate', value: formatPercent(absoluteTopRate), ...calcDelta(absoluteTopRate, prevAbsTopRate), color: 'default' as const },
-    { label: 'Spend', value: '$' + totalSpend.toFixed(2), ...calcDelta(totalSpend, prevSpend), color: 'default' as const },
+    { label: 'Spend', value: formatDollars(totalSpend), ...calcDelta(totalSpend, prevSpend), color: 'default' as const },
   ];
 
   return {

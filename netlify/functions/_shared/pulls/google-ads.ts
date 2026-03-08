@@ -1,5 +1,5 @@
 import { GoogleAdsApi } from 'google-ads-api';
-import { getDateRange, getPreviousDateRange, formatNumber, formatPercent, calcDelta } from '../data-pull-utils';
+import { getDateRange, getPreviousDateRange, formatNumber, formatPercent, formatDollars, calcDelta } from '../data-pull-utils';
 import type { SourceFilter } from '../../../../src/shared/schemas/filters';
 
 interface GoogleAdsResult {
@@ -45,8 +45,6 @@ export async function pullGoogleAds(
       campaign.advertising_channel_type,
       metrics.impressions,
       metrics.clicks,
-      metrics.ctr,
-      metrics.average_cpc,
       metrics.conversions,
       metrics.cost_per_conversion,
       metrics.cost_micros
@@ -77,8 +75,6 @@ export async function pullGoogleAds(
       metrics: {
         impressions: imp,
         clicks,
-        ctr: formatPercent(clicks > 0 ? (clicks / imp) * 100 : 0),
-        cpc: '$' + (clicks > 0 ? (spend / clicks).toFixed(2) : '0.00'),
         conversions: conv,
         cost_per_conversion: '$' + (conv > 0 ? (spend / conv).toFixed(2) : '0.00'),
         spend: '$' + spend.toFixed(2),
@@ -112,10 +108,9 @@ export async function pullGoogleAds(
   const kpis = [
     { label: 'Impressions', value: formatNumber(totalImpressions), ...calcDelta(totalImpressions, prevImpressions), color: 'default' as const },
     { label: 'Clicks', value: formatNumber(totalClicks), ...calcDelta(totalClicks, prevClicks), color: 'default' as const },
-    { label: 'CTR', value: formatPercent(totalClicks > 0 ? (totalClicks / totalImpressions) * 100 : 0), ...calcDelta(totalClicks / Math.max(totalImpressions, 1), prevClicks / Math.max(prevImpressions, 1)), color: 'default' as const },
     { label: 'Conversions', value: formatNumber(totalConversions), ...calcDelta(totalConversions, prevConversions), color: 'default' as const },
-    { label: 'Spend', value: '$' + totalSpend.toFixed(2), ...calcDelta(totalCostMicros, prevCost), color: 'default' as const },
-    { label: 'Cost/Conv', value: '$' + (totalConversions > 0 ? (totalSpend / totalConversions).toFixed(2) : '0.00'), ...calcDelta(prevConversions > 0 ? prevCost / prevConversions : 0, totalConversions > 0 ? totalCostMicros / totalConversions : 0), color: 'default' as const },
+    { label: 'Spend', value: formatDollars(totalSpend), ...calcDelta(totalCostMicros, prevCost), color: 'default' as const },
+    { label: 'Cost/Conv', value: formatDollars(totalConversions > 0 ? totalSpend / totalConversions : 0), ...calcDelta(prevConversions > 0 ? prevCost / prevConversions : 0, totalConversions > 0 ? totalCostMicros / totalConversions : 0), color: 'default' as const },
   ];
 
   return {
@@ -126,7 +121,6 @@ export async function pullGoogleAds(
         conversions: totalConversions,
         costMicros: totalCostMicros,
         spend: totalSpend,
-        ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
         costPerConversion: totalConversions > 0 ? totalSpend / totalConversions : 0,
       },
       previous: {
@@ -135,7 +129,6 @@ export async function pullGoogleAds(
         conversions: prevConversions,
         costMicros: prevCost,
         spend: prevCost / 1_000_000,
-        ctr: prevImpressions > 0 ? (prevClicks / prevImpressions) * 100 : 0,
         costPerConversion: prevConversions > 0 ? (prevCost / 1_000_000) / prevConversions : 0,
       },
       campaigns: campaignRows.map((r: any) => ({

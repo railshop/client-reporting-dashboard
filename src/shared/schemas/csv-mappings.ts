@@ -23,13 +23,13 @@ export const CSV_SOURCE_MAPPINGS: Partial<Record<SourceType, CsvSourceMapping>> 
     description: 'Import GA4 summary metrics. One row with aggregate values.',
     mode: 'summary',
     columns: [
+      { field: 'newUsers', label: 'New Users', type: 'number', required: true },
       { field: 'sessions', label: 'Sessions', type: 'number', required: true },
-      { field: 'users', label: 'Users', type: 'number' },
-      { field: 'newUsers', label: 'New Users', type: 'number' },
-      { field: 'pageviews', label: 'Pageviews', type: 'number' },
-      { field: 'avgSessionDuration', label: 'Avg Session Duration (sec)', type: 'number' },
-      { field: 'bounceRate', label: 'Bounce Rate', type: 'number' },
-      { field: 'conversions', label: 'Conversions', type: 'number' },
+      { field: 'organicSessions', label: 'Organic Sessions', type: 'number' },
+      { field: 'directSessions', label: 'Direct Sessions', type: 'number' },
+      { field: 'paidSessions', label: 'Paid Sessions', type: 'number' },
+      // TODO: Add conversions once GA4 conversion events are configured per client
+      // { field: 'conversions', label: 'Conversions', type: 'number' },
     ],
   },
   gsc: {

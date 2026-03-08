@@ -99,11 +99,30 @@ export default async (request: Request, _context: Context) => {
     `;
   }
 
-  // Attach campaigns to their sections
-  const sectionsWithCampaigns = sections.map((section: any) => ({
-    ...section,
-    campaigns: campaigns.filter((c: any) => c.report_section_id === section.id),
-  }));
+  // Extract ServiceTitan channel rollups for blending into source tabs
+  const stSection = sections.find((s: any) => s.source === 'servicetitan');
+  const channelRollups = stSection?.tables?._channelRollups || {};
+
+  // Attach campaigns to their sections + ServiceTitan blended data
+  const sectionsWithCampaigns = sections.map((section: any) => {
+    const result: any = {
+      ...section,
+      campaigns: campaigns.filter((c: any) => c.report_section_id === section.id),
+    };
+
+    // Remove internal _channelRollups from ServiceTitan tables
+    if (section.source === 'servicetitan' && result.tables?._channelRollups) {
+      const { _channelRollups, ...cleanTables } = result.tables;
+      result.tables = cleanTables;
+    }
+
+    // Attach blended ServiceTitan data to matching source sections
+    if (section.source !== 'servicetitan' && channelRollups[section.source]) {
+      result.servicetitan_blended = channelRollups[section.source];
+    }
+
+    return result;
+  });
 
   return jsonResponse({
     client: {

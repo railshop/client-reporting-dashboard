@@ -1,4 +1,5 @@
-import { formatNumber, formatPercent, calcDelta } from './data-pull-utils';
+import { formatNumber, formatPercent, formatDollars, calcDelta } from './data-pull-utils';
+import { computeChannelRollups, type ChannelRollup } from './servicetitan-channel-map';
 
 type SourceType = 'ga4' | 'gsc' | 'google_ads' | 'meta' | 'lsa' | 'servicetitan' | 'gbp';
 
@@ -6,37 +7,21 @@ interface TransformResult {
   kpis: any[];
   tables: Record<string, any>;
   campaigns?: any[];
+  channelRollups?: Record<string, ChannelRollup>;
 }
 
 function transformGA4(raw: Record<string, any>): TransformResult {
-  const current = raw.current;
-  const previous = raw.previous;
+  const cur = raw.current || {};
+  const prv = raw.previous || {};
 
-  const metricKeys: Array<{ label: string; key: string; format?: 'duration' | 'bounceRate' }> = [
-    { label: 'Sessions', key: 'sessions' },
-    { label: 'Users', key: 'users' },
-    { label: 'New Users', key: 'newUsers' },
-    { label: 'Pageviews', key: 'pageviews' },
-    { label: 'Avg Duration', key: 'avgSessionDuration', format: 'duration' },
-    { label: 'Bounce Rate', key: 'bounceRate', format: 'bounceRate' },
-    { label: 'Conversions', key: 'conversions' },
+  const kpis = [
+    { label: 'New Users', value: formatNumber(cur.newUsers || 0), ...calcDelta(cur.newUsers || 0, prv.newUsers || 0), color: 'default' as const },
+    { label: 'Sessions', value: formatNumber(cur.sessions || 0), ...calcDelta(cur.sessions || 0, prv.sessions || 0), color: 'default' as const },
+    { label: 'Organic Sessions', value: formatNumber(cur.organicSessions || 0), ...calcDelta(cur.organicSessions || 0, prv.organicSessions || 0), color: 'default' as const },
+    { label: 'Direct Sessions', value: formatNumber(cur.directSessions || 0), ...calcDelta(cur.directSessions || 0, prv.directSessions || 0), color: 'default' as const },
+    { label: 'Paid Sessions', value: formatNumber(cur.paidSessions || 0), ...calcDelta(cur.paidSessions || 0, prv.paidSessions || 0), color: 'default' as const },
+    // TODO: Add conversions KPI once GA4 conversion events are configured per client
   ];
-
-  const kpis = metricKeys.map(({ label, key, format }) => {
-    const cur = current[key] || 0;
-    const prev = previous[key] || 0;
-    let value: string;
-    if (format === 'duration') {
-      const mins = Math.floor(cur / 60);
-      const secs = Math.round(cur % 60);
-      value = `${mins}m ${secs}s`;
-    } else if (format === 'bounceRate') {
-      value = formatPercent(cur * 100);
-    } else {
-      value = formatNumber(cur);
-    }
-    return { label, value, ...calcDelta(cur, prev), color: 'default' as const };
-  });
 
   return {
     kpis,
@@ -46,8 +31,6 @@ function transformGA4(raw: Record<string, any>): TransformResult {
         columns: [
           { key: 'channel', label: 'Channel', align: 'left' },
           { key: 'sessions', label: 'Sessions', align: 'right' },
-          { key: 'users', label: 'Users', align: 'right' },
-          { key: 'conversions', label: 'Conversions', align: 'right' },
         ],
         rows: raw.channelBreakdown || [],
       },
@@ -56,7 +39,6 @@ function transformGA4(raw: Record<string, any>): TransformResult {
         columns: [
           { key: 'page', label: 'Page', align: 'left' },
           { key: 'sessions', label: 'Sessions', align: 'right' },
-          { key: 'conversions', label: 'Conversions', align: 'right' },
         ],
         rows: raw.topLandingPages || [],
       },
@@ -110,10 +92,9 @@ function transformGoogleAds(raw: Record<string, any>): TransformResult {
   const kpis = [
     { label: 'Impressions', value: formatNumber(cur.impressions), ...calcDelta(cur.impressions, prv.impressions), color: 'default' as const },
     { label: 'Clicks', value: formatNumber(cur.clicks), ...calcDelta(cur.clicks, prv.clicks), color: 'default' as const },
-    { label: 'CTR', value: formatPercent(cur.ctr), ...calcDelta(cur.ctr, prv.ctr), color: 'default' as const },
     { label: 'Conversions', value: formatNumber(cur.conversions), ...calcDelta(cur.conversions, prv.conversions), color: 'default' as const },
-    { label: 'Spend', value: '$' + cur.spend.toFixed(2), ...calcDelta(cur.costMicros, prv.costMicros), color: 'default' as const },
-    { label: 'Cost/Conv', value: '$' + (cur.conversions > 0 ? (cur.spend / cur.conversions).toFixed(2) : '0.00'), ...calcDelta(prv.costPerConversion, cur.costPerConversion), color: 'default' as const },
+    { label: 'Spend', value: formatDollars(cur.spend), ...calcDelta(cur.costMicros, prv.costMicros), color: 'default' as const },
+    { label: 'Cost/Conv', value: formatDollars(cur.conversions > 0 ? cur.spend / cur.conversions : 0), ...calcDelta(prv.costPerConversion, cur.costPerConversion), color: 'default' as const },
   ];
 
   const campaigns = (raw.campaigns || []).map((c: any) => {
@@ -124,8 +105,6 @@ function transformGoogleAds(raw: Record<string, any>): TransformResult {
       metrics: {
         impressions: c.impressions,
         clicks: c.clicks,
-        ctr: formatPercent(c.clicks > 0 ? (c.clicks / c.impressions) * 100 : 0),
-        cpc: '$' + (c.clicks > 0 ? (spend / c.clicks).toFixed(2) : '0.00'),
         conversions: c.conversions,
         cost_per_conversion: '$' + (c.conversions > 0 ? (spend / c.conversions).toFixed(2) : '0.00'),
         spend: '$' + spend.toFixed(2),
@@ -146,8 +125,8 @@ function transformMeta(raw: Record<string, any>): TransformResult {
     { label: 'Clicks', value: formatNumber(cur.clicks), ...calcDelta(cur.clicks, prv.clicks), color: 'default' as const },
     { label: 'CTR', value: formatPercent(cur.ctr), ...calcDelta(cur.ctr, prv.ctr), color: 'default' as const },
     { label: 'Leads', value: formatNumber(cur.leads), ...calcDelta(cur.leads, prv.leads), color: 'default' as const },
-    { label: 'CPL', value: cur.leads > 0 ? '$' + (cur.spend / cur.leads).toFixed(2) : 'N/A', ...calcDelta(prv.cpl, cur.cpl), color: 'default' as const },
-    { label: 'Spend', value: '$' + cur.spend.toFixed(2), ...calcDelta(cur.spend, prv.spend), color: 'default' as const },
+    { label: 'CPL', value: cur.leads > 0 ? formatDollars(cur.spend / cur.leads) : 'N/A', ...calcDelta(prv.cpl, cur.cpl), color: 'default' as const },
+    { label: 'Spend', value: formatDollars(cur.spend), ...calcDelta(cur.spend, prv.spend), color: 'default' as const },
   ];
 
   const campaigns = (raw.campaigns || []).map((c: any) => ({
@@ -177,14 +156,16 @@ function transformServiceTitan(raw: Record<string, any>): TransformResult {
     { label: 'Jobs Booked', value: formatNumber(cur.totalJobsBooked || 0), color: 'default' as const },
     { label: 'New Customers', value: formatNumber(cur.jobsBookedNew || 0), color: 'default' as const },
     { label: 'Existing Customers', value: formatNumber(cur.jobsBookedExisting || 0), color: 'default' as const },
-    { label: 'Completed Revenue', value: fmt$(cur.completedRevenue || 0), color: 'default' as const },
-    { label: 'Total Sales', value: fmt$(cur.totalSales || 0), color: 'default' as const },
+    { label: 'Completed Revenue', value: formatDollars(cur.completedRevenue || 0), color: 'default' as const },
+    { label: 'Total Sales', value: formatDollars(cur.totalSales || 0), color: 'default' as const },
     { label: 'Conversion Rate', value: formatPercent((cur.opportunityConversionRate || 0) * 100), color: 'default' as const },
-    { label: 'Revenue / Lead', value: fmt$(cur.revenuePerLead || 0), color: 'default' as const },
-    { label: 'Avg Job Total', value: fmt$(cur.totalJobAverage || 0), color: 'default' as const },
+    { label: 'Revenue / Lead', value: formatDollars(cur.revenuePerLead || 0), color: 'default' as const },
+    { label: 'Avg Job Total', value: formatDollars(cur.totalJobAverage || 0), color: 'default' as const },
   ];
 
-  const campaigns = (raw.campaigns || [])
+  const rawCampaigns = (raw.campaigns || []);
+
+  const campaigns = rawCampaigns
     .sort((a: any, b: any) => (Number(b.completed_revenue) || 0) - (Number(a.completed_revenue) || 0))
     .map((c: any) => ({
       campaign: String(c.campaign_name || ''),
@@ -194,6 +175,18 @@ function transformServiceTitan(raw: Record<string, any>): TransformResult {
       completed_revenue: fmt$(Number(c.completed_revenue) || 0),
       total_sales: fmt$(Number(c.total_sales) || 0),
     }));
+
+  // Compute per-channel rollups for blending into source tabs
+  const channelRollups = computeChannelRollups(
+    rawCampaigns.map((c: any) => ({
+      campaign_name: String(c.campaign_name || ''),
+      jobs_booked: Number(c.jobs_booked) || 0,
+      jobs_booked_new: Number(c.jobs_booked_new) || 0,
+      jobs_booked_existing: Number(c.jobs_booked_existing) || 0,
+      completed_revenue: Number(c.completed_revenue) || 0,
+      total_sales: Number(c.total_sales) || 0,
+    }))
+  );
 
   return {
     kpis,
@@ -211,6 +204,7 @@ function transformServiceTitan(raw: Record<string, any>): TransformResult {
         rows: campaigns,
       },
     },
+    channelRollups: Object.keys(channelRollups).length > 0 ? channelRollups : undefined,
   };
 }
 
@@ -223,7 +217,7 @@ function transformLSA(raw: Record<string, any>): TransformResult {
     { label: 'Impressions', value: formatNumber(cur.impressions || 0), ...calcDelta(cur.impressions || 0, prv.impressions || 0), color: 'default' as const },
     { label: 'Impression → Lead', value: formatPercent(cur.impressionToLeadRate || 0), ...calcDelta(cur.impressionToLeadRate || 0, prv.impressionToLeadRate || 0), color: 'default' as const },
     { label: 'Absolute Top Rate', value: formatPercent(cur.absoluteTopRate || 0), ...calcDelta(cur.absoluteTopRate || 0, prv.absoluteTopRate || 0), color: 'default' as const },
-    { label: 'Spend', value: '$' + (cur.spend || 0).toFixed(2), ...calcDelta(cur.spend || 0, prv.spend || 0), color: 'default' as const },
+    { label: 'Spend', value: formatDollars(cur.spend || 0), ...calcDelta(cur.spend || 0, prv.spend || 0), color: 'default' as const },
   ];
 
   return { kpis, tables: {} };

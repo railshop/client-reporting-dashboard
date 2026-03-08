@@ -16,6 +16,18 @@ export interface ReportPeriod {
   published_at: string | null;
 }
 
+export interface ServiceTitanBlended {
+  kpis: KpiItem[];
+  campaigns: Array<{
+    campaign: string;
+    jobs_booked: string;
+    new_customers: string;
+    existing_customers: string;
+    completed_revenue: string;
+    total_sales: string;
+  }>;
+}
+
 export interface ReportSection {
   id: string;
   source: string;
@@ -24,6 +36,7 @@ export interface ReportSection {
   railshop_notes: string | null;
   next_priorities: string[] | null;
   campaigns: ReportCampaign[];
+  servicetitan_blended?: ServiceTitanBlended;
 }
 
 export interface ReportCampaign {

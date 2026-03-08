@@ -80,6 +80,12 @@ export default async (request: Request, _context: Context) => {
         continue;
       }
 
+      // Include channel rollups in tables JSONB for ServiceTitan
+      const tablesToStore = {
+        ...(data.tables || {}),
+        ...(data.channelRollups ? { _channelRollups: data.channelRollups } : {}),
+      };
+
       // Upsert section
       const sectionResult = await sql`
         INSERT INTO report_sections (report_period_id, source, kpis, tables)
@@ -87,12 +93,12 @@ export default async (request: Request, _context: Context) => {
           ${reportPeriod.id},
           ${source},
           ${JSON.stringify(data.kpis)}::jsonb,
-          ${JSON.stringify(data.tables || {})}::jsonb
+          ${JSON.stringify(tablesToStore)}::jsonb
         )
         ON CONFLICT (report_period_id, source)
         DO UPDATE SET
           kpis = ${JSON.stringify(data.kpis)}::jsonb,
-          tables = ${JSON.stringify(data.tables || {})}::jsonb,
+          tables = ${JSON.stringify(tablesToStore)}::jsonb,
           updated_at = now()
         RETURNING id
       `;

@@ -1,4 +1,4 @@
-import { getDateRange, getPreviousDateRange, formatNumber, formatPercent, calcDelta } from '../data-pull-utils';
+import { getDateRange, getPreviousDateRange, formatNumber, formatPercent, formatDollars, calcDelta } from '../data-pull-utils';
 import type { SourceFilter } from '../../../../src/shared/schemas/filters';
 
 const META_API_VERSION = 'v21.0';
@@ -63,8 +63,8 @@ export async function pullMeta(
     { label: 'Clicks', value: formatNumber(Number(cur.clicks || 0)), ...calcDelta(Number(cur.clicks || 0), Number(prv.clicks || 0)), color: 'default' as const },
     { label: 'CTR', value: formatPercent(Number(cur.ctr || 0)), ...calcDelta(Number(cur.ctr || 0), Number(prv.ctr || 0)), color: 'default' as const },
     { label: 'Leads', value: formatNumber(curLeads), ...calcDelta(curLeads, prevLeads), color: 'default' as const },
-    { label: 'CPL', value: curLeads > 0 ? '$' + (curSpend / curLeads).toFixed(2) : 'N/A', ...calcDelta(prevLeads > 0 ? prevSpend / prevLeads : 0, curLeads > 0 ? curSpend / curLeads : 0), color: 'default' as const },
-    { label: 'Spend', value: '$' + curSpend.toFixed(2), ...calcDelta(curSpend, prevSpend), color: 'default' as const },
+    { label: 'CPL', value: curLeads > 0 ? formatDollars(curSpend / curLeads) : 'N/A', ...calcDelta(prevLeads > 0 ? prevSpend / prevLeads : 0, curLeads > 0 ? curSpend / curLeads : 0), color: 'default' as const },
+    { label: 'Spend', value: formatDollars(curSpend), ...calcDelta(curSpend, prevSpend), color: 'default' as const },
   ];
 
   // Campaign-level data

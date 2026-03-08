@@ -14,13 +14,13 @@ export async function pullGoogleAds(
   periodStart: string,
   filters?: SourceFilter[]
 ): Promise<GoogleAdsResult> {
-  const { developer_token, refresh_token, customer_id, manager_account_id } = credentials;
+  const { client_id, client_secret, developer_token, refresh_token, customer_id, manager_account_id } = credentials;
   const { startDate, endDate } = getDateRange(periodStart);
   const prev = getPreviousDateRange(periodStart);
 
   const client = new GoogleAdsApi({
-    client_id: process.env.GOOGLE_ADS_CLIENT_ID || '',
-    client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET || '',
+    client_id,
+    client_secret,
     developer_token,
   });
 

@@ -73,37 +73,76 @@ export default async (request: Request, _context: Context) => {
   const clientId = clients[0].id;
   const clientName = clients[0].name;
 
-  // Load current period raw_ingestions
-  const ingestions = await sql`
-    SELECT source, raw_data
-    FROM raw_ingestions
+  // Create or find report period
+  let reportPeriod;
+  const existing = await sql`
+    SELECT id FROM report_periods
     WHERE client_id = ${clientId} AND period_start = ${periodStart}
   `;
-
-  if (ingestions.length === 0) {
-    return jsonResponse({ error: 'No ingested data found. Run data ingestion first.' }, 400);
+  if (existing.length > 0) {
+    reportPeriod = existing[0];
+  } else {
+    const created = await sql`
+      INSERT INTO report_periods (client_id, period_start, status)
+      VALUES (${clientId}, ${periodStart}, 'draft')
+      RETURNING id
+    `;
+    reportPeriod = created[0];
   }
 
-  // Load previous period raw_ingestions for comparison
-  const prev = getPreviousDateRange(periodStart);
-  const previousIngestions = await sql`
-    SELECT source, raw_data
-    FROM raw_ingestions
-    WHERE client_id = ${clientId} AND period_start = ${prev.startDate}
+  // Set status to pending
+  await sql`
+    UPDATE report_periods
+    SET ai_status = 'pending', ai_error = NULL, updated_at = now()
+    WHERE id = ${reportPeriod.id}
   `;
 
-  // Build data context for Claude
-  const dataContext = buildRawDataContext(
-    ingestions as any[],
-    previousIngestions as any[]
-  );
-
-  let userMessage = `Generate a monthly performance report for ${clientName}.\nPeriod: ${periodStart}\n\nRaw data:\n${dataContext}`;
-  if (prompt) {
-    userMessage += `\n\nAdmin guidance: ${prompt}`;
-  }
+  // --- Background work starts here ---
+  // (Netlify background functions return 202 automatically,
+  //  so everything below runs asynchronously)
 
   try {
+    // Set status to generating
+    await sql`
+      UPDATE report_periods SET ai_status = 'generating', updated_at = now()
+      WHERE id = ${reportPeriod.id}
+    `;
+
+    // Load current period raw_ingestions
+    const ingestions = await sql`
+      SELECT source, raw_data
+      FROM raw_ingestions
+      WHERE client_id = ${clientId} AND period_start = ${periodStart}
+    `;
+
+    if (ingestions.length === 0) {
+      await sql`
+        UPDATE report_periods
+        SET ai_status = 'error', ai_error = 'No ingested data found. Run data ingestion first.', updated_at = now()
+        WHERE id = ${reportPeriod.id}
+      `;
+      return new Response();
+    }
+
+    // Load previous period raw_ingestions for comparison
+    const prev = getPreviousDateRange(periodStart);
+    const previousIngestions = await sql`
+      SELECT source, raw_data
+      FROM raw_ingestions
+      WHERE client_id = ${clientId} AND period_start = ${prev.startDate}
+    `;
+
+    // Build data context for Claude
+    const dataContext = buildRawDataContext(
+      ingestions as any[],
+      previousIngestions as any[]
+    );
+
+    let userMessage = `Generate a monthly performance report for ${clientName}.\nPeriod: ${periodStart}\n\nRaw data:\n${dataContext}`;
+    if (prompt) {
+      userMessage += `\n\nAdmin guidance: ${prompt}`;
+    }
+
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
@@ -118,44 +157,32 @@ export default async (request: Request, _context: Context) => {
     // Parse JSON from Claude's response
     let parsed: any;
     try {
-      // Handle potential markdown code fences
-      const jsonStr = rawOutput.replace(/^```json?\s*\n?/m, '').replace(/\n?```\s*$/m, '').trim();
+      // Try extracting JSON from markdown code fences first
+      const fenceMatch = rawOutput.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
+      const jsonStr = fenceMatch ? fenceMatch[1].trim() : rawOutput.trim();
       parsed = JSON.parse(jsonStr);
-    } catch {
-      return jsonResponse({
-        error: 'Claude returned invalid JSON',
-        rawOutput,
-      }, 422);
+    } catch (parseErr: any) {
+      console.error('[ai-background] JSON parse failed. First 500 chars:', rawOutput.slice(0, 500));
+      await sql`
+        UPDATE report_periods
+        SET ai_status = 'error', ai_error = ${'Claude returned invalid JSON: ' + (parseErr.message || '')}, updated_at = now()
+        WHERE id = ${reportPeriod.id}
+      `;
+      return new Response();
     }
 
     // Validate with Zod
     const validation = aiReportOutputSchema.safeParse(parsed);
     if (!validation.success) {
-      return jsonResponse({
-        error: 'Claude output failed schema validation',
-        validationErrors: validation.error.issues,
-        rawOutput,
-      }, 422);
+      await sql`
+        UPDATE report_periods
+        SET ai_status = 'error', ai_error = ${'Schema validation failed: ' + JSON.stringify(validation.error.issues.slice(0, 3))}, updated_at = now()
+        WHERE id = ${reportPeriod.id}
+      `;
+      return new Response();
     }
 
     const reportData = validation.data;
-
-    // Create or find report period
-    let reportPeriod;
-    const existing = await sql`
-      SELECT id FROM report_periods
-      WHERE client_id = ${clientId} AND period_start = ${periodStart}
-    `;
-    if (existing.length > 0) {
-      reportPeriod = existing[0];
-    } else {
-      const created = await sql`
-        INSERT INTO report_periods (client_id, period_start, status)
-        VALUES (${clientId}, ${periodStart}, 'draft')
-        RETURNING id
-      `;
-      reportPeriod = created[0];
-    }
 
     // Write overview
     await sql`
@@ -200,8 +227,19 @@ export default async (request: Request, _context: Context) => {
       }
     }
 
-    return jsonResponse({ reportPeriodId: reportPeriod.id, sections: reportData.sections.length });
+    // Mark complete
+    await sql`
+      UPDATE report_periods
+      SET ai_status = 'complete', ai_error = NULL, updated_at = now()
+      WHERE id = ${reportPeriod.id}
+    `;
   } catch (err: any) {
-    return jsonResponse({ error: err.message || 'AI generation failed' }, 500);
+    await sql`
+      UPDATE report_periods
+      SET ai_status = 'error', ai_error = ${err.message || 'AI generation failed'}, updated_at = now()
+      WHERE id = ${reportPeriod.id}
+    `;
   }
+
+  return new Response();
 };

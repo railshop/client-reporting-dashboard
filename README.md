@@ -81,13 +81,6 @@ app/
    netlify dev
    ```
 
-### Optional Env Vars (for data pulling)
-
-| Variable | Required For |
-|----------|-------------|
-| `GOOGLE_ADS_CLIENT_ID` | Google Ads API pulls |
-| `GOOGLE_ADS_CLIENT_SECRET` | Google Ads API pulls |
-
 ## Features
 
 ### Client Dashboard
@@ -141,4 +134,20 @@ npm run build     # Production build
 npm run dev       # Vite dev server (no functions)
 netlify dev       # Full dev with functions
 npx tsc --noEmit  # Type check
+```
+
+## Troubleshooting
+
+### Clear Netlify Local Cache
+
+If you're seeing stale functions or unexpected behavior in local dev, clear the Netlify cache:
+
+```bash
+rm -rf .netlify/cache
+```
+
+To clear all local Netlify state (cache, edge functions build artifacts, etc.):
+
+```bash
+rm -rf .netlify
 ```

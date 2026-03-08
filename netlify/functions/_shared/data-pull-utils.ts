@@ -8,7 +8,7 @@ export async function getDecryptedCredentials(clientSlug: string, source: Source
     SELECT cds.config
     FROM client_data_sources cds
     JOIN clients c ON cds.client_id = c.id
-    WHERE c.slug = ${clientSlug} AND cds.source = ${source} AND cds.active = true
+    WHERE c.slug = ${clientSlug} AND cds.source = ${source}
   `;
 
   if (rows.length === 0) return null;

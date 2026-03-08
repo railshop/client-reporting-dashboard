@@ -171,27 +171,65 @@ function AIGeneratePanel({
   const [generating, setGenerating] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [showPrompt, setShowPrompt] = useState(false);
+  const [aiStatus, setAiStatus] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  // Poll for AI status while generating
+  useEffect(() => {
+    if (!generating) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await apiFetch<{ ai_status: string | null; ai_error: string | null }>(
+          `/report-ai-status?clientSlug=${clientSlug}&periodStart=${periodStart}`
+        );
+        setAiStatus(res.ai_status);
+        if (res.ai_status === 'complete') {
+          setGenerating(false);
+          setShowPrompt(false);
+          setPrompt('');
+          setAiStatus(null);
+          onGenerated();
+        } else if (res.ai_status === 'error') {
+          setGenerating(false);
+          setAiError(res.ai_error || 'AI generation failed');
+        }
+      } catch {
+        // polling failed, keep trying
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [generating, clientSlug, periodStart, onGenerated]);
 
   const handleGenerate = async () => {
     setGenerating(true);
+    setAiError(null);
+    setAiStatus('pending');
     try {
-      await apiFetch('/report-generate-ai', {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/report-generate-ai-background`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           clientSlug,
           periodStart,
           prompt: prompt || undefined,
         }),
       });
-      setShowPrompt(false);
-      setPrompt('');
-      onGenerated();
+      if (!res.ok && res.status !== 202) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `API error: ${res.status}`);
+      }
+      // Background function returns 202 immediately, polling takes over
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'AI generation failed');
-    } finally {
       setGenerating(false);
+      setAiError(err instanceof Error ? err.message : 'Failed to start AI generation');
     }
   };
+
+  const statusLabel = aiStatus === 'pending' ? 'Starting...' : aiStatus === 'generating' ? 'Generating with AI...' : 'Generating...';
 
   return (
     <div className="bg-surface border border-border-v1 rounded-[11px] px-6 py-5 mb-6">
@@ -199,20 +237,22 @@ function AIGeneratePanel({
         <div className="text-[11px] font-semibold text-text-3 uppercase tracking-[0.08em]">
           AI Report Generation
         </div>
-        <button
-          type="button"
-          onClick={() => setShowPrompt(!showPrompt)}
-          className="font-mono text-[9px] text-blue hover:text-blue-dim transition-colors"
-        >
-          {showPrompt ? 'CANCEL' : 'ADD GUIDANCE'}
-        </button>
+        {!generating && (
+          <button
+            type="button"
+            onClick={() => setShowPrompt(!showPrompt)}
+            className="font-mono text-[9px] text-blue hover:text-blue-dim transition-colors"
+          >
+            {showPrompt ? 'CANCEL' : 'ADD GUIDANCE'}
+          </button>
+        )}
       </div>
 
       <p className="text-[12px] text-muted-foreground mb-3">
         Generate a complete report from ingested raw data using AI. This will create the overview, all section KPIs, tables, notes, and priorities.
       </p>
 
-      {showPrompt && (
+      {showPrompt && !generating && (
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
@@ -222,11 +262,17 @@ function AIGeneratePanel({
         />
       )}
 
+      {aiError && (
+        <div className="text-[12px] text-red mb-3 bg-red/10 border border-red/20 rounded-lg px-3 py-2">
+          {aiError}
+        </div>
+      )}
+
       <Button
         onClick={handleGenerate}
         disabled={generating}
       >
-        {generating ? 'Generating with AI...' : 'Generate Report with AI'}
+        {generating ? statusLabel : 'Generate Report with AI'}
       </Button>
     </div>
   );

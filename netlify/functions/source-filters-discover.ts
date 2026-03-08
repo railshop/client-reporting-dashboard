@@ -37,11 +37,11 @@ async function discoverMetaCampaigns(credentials: Record<string, string>): Promi
 
 async function discoverGoogleAdsCampaigns(credentials: Record<string, string>): Promise<FilterOption[]> {
   const { GoogleAdsApi } = await import('google-ads-api');
-  const { developer_token, refresh_token, customer_id, manager_account_id } = credentials;
+  const { client_id, client_secret, developer_token, refresh_token, customer_id, manager_account_id } = credentials;
 
   const client = new GoogleAdsApi({
-    client_id: process.env.GOOGLE_ADS_CLIENT_ID || '',
-    client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET || '',
+    client_id,
+    client_secret,
     developer_token,
   });
 

@@ -265,7 +265,7 @@ function SourceFilterDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-xl overflow-hidden">
         <DialogHeader>
           <DialogTitle>
             {filterConfig?.label} — {SOURCE_LABELS[source]}
@@ -298,13 +298,13 @@ function SourceFilterDialog({
                   {Array.from(allValues.entries()).map(([val, { label, active }]) => (
                     <label
                       key={val}
-                      className="flex items-center gap-2 cursor-pointer hover:bg-surface-2 rounded px-2 py-1.5 transition-colors"
+                      className="flex items-center gap-2 cursor-pointer hover:bg-surface-2 rounded px-2 py-1.5 transition-colors min-w-0"
                     >
                       <Checkbox
                         checked={active}
                         onCheckedChange={(checked) => handleToggle(val, !!checked)}
                       />
-                      <span className="text-sm text-text-v1 truncate">{label}</span>
+                      <span className="text-sm text-text-v1 truncate min-w-0">{label}</span>
                     </label>
                   ))}
                 </div>

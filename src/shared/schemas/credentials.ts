@@ -12,6 +12,8 @@ export const gscCredentialsSchema = z.object({
 });
 
 export const googleAdsCredentialsSchema = z.object({
+  client_id: z.string().min(1),
+  client_secret: z.string().min(1),
   developer_token: z.string().min(1),
   refresh_token: z.string().min(1),
   customer_id: z.string().min(1),
@@ -62,6 +64,8 @@ export const CREDENTIAL_FIELDS: Record<SourceType, Record<string, FieldDef>> = {
     site_url: { label: 'Site URL', secret: false },
   },
   google_ads: {
+    client_id: { label: 'OAuth Client ID', secret: true },
+    client_secret: { label: 'OAuth Client Secret', secret: true },
     developer_token: { label: 'Developer Token', secret: true },
     refresh_token: { label: 'Refresh Token', secret: true },
     customer_id: { label: 'Customer ID', secret: false },

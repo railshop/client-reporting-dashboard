@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiFetch } from '@/lib/api';
 import type { ReportData, PeriodListItem } from '@/types/report';
 
@@ -6,21 +6,34 @@ export function useReport(clientSlug: string | undefined, period?: string) {
   const [report, setReport] = useState<ReportData | null>(null);
   const [periods, setPeriods] = useState<PeriodListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [switching, setSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasFetched = useRef(false);
+  const prevPeriod = useRef(period);
+
+  // Detect period change synchronously during render — no useEffect delay
+  if (hasFetched.current && period !== prevPeriod.current) {
+    prevPeriod.current = period;
+    setSwitching(true);
+  }
 
   const fetchReport = useCallback(async () => {
     if (!clientSlug) return;
-    setLoading(true);
+    if (!hasFetched.current) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const params = new URLSearchParams({ client: clientSlug });
       if (period) params.set('period', period);
       const data = await apiFetch<ReportData>(`/report-get?${params}`);
       setReport(data);
+      hasFetched.current = true;
     } catch (e: any) {
       setError(e.message || 'Failed to load report');
     } finally {
       setLoading(false);
+      setSwitching(false);
     }
   }, [clientSlug, period]);
 
@@ -41,5 +54,5 @@ export function useReport(clientSlug: string | undefined, period?: string) {
     fetchPeriods();
   }, [fetchReport, fetchPeriods]);
 
-  return { report, periods, loading, error, refetch: fetchReport };
+  return { report, periods, loading, switching, error, refetch: fetchReport };
 }

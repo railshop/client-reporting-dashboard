@@ -1,66 +1,22 @@
-import { useState, useMemo } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
+import { useState, useMemo, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useReport } from '@/hooks/useReport';
-import { apiFetch } from '@/lib/api';
 import { Topbar } from '@/components/dashboard/Topbar';
 import { TabNav } from '@/components/dashboard/TabNav';
 import { MonthPicker } from '@/components/dashboard/MonthPicker';
+import { ReportSkeleton } from '@/components/dashboard/ReportSkeleton';
 import { OverviewTab } from '@/components/dashboard/tabs/OverviewTab';
 import { SourceTab } from '@/components/dashboard/tabs/SourceTab';
 import { SOURCE_LABELS } from '@/shared/schemas/sources';
 import { cn } from '@/lib/utils';
-
-function MinimalTopbar() {
-  const { logout, user } = useAuth();
-  return (
-    <div className="sticky top-0 z-[100] bg-bg border-b border-border-v1">
-      <div className="max-w-[1200px] mx-auto px-6 h-[58px] flex items-center gap-4">
-        <img src="/railshop.svg" alt="Railshop" className="h-5 brightness-0 invert" />
-        <div className="ml-auto flex items-center gap-4">
-          {user?.role === 'admin' && (
-            <Link to="/admin" className="font-mono text-[10px] text-text-3 hover:text-text-2 transition-colors tracking-[0.05em]">
-              ← ADMIN
-            </Link>
-          )}
-          <button
-            onClick={logout}
-            className="font-mono text-[10px] text-text-3 hover:text-text-2 transition-colors"
-          >
-            LOGOUT
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 const TAB_ORDER: string[] = ['overview', 'ga4', 'gsc', 'lsa', 'google_ads', 'meta', 'servicetitan', 'gbp'];
 
 export function DashboardPage() {
   const { clientSlug, period } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const { report, periods, loading, error, refetch } = useReport(clientSlug, period);
+  const { report, periods, loading, switching, error } = useReport(clientSlug, period);
   const [activeTab, setActiveTab] = useState('overview');
-  const [publishing, setPublishing] = useState(false);
-
-  const handlePublishToggle = async () => {
-    if (!report) return;
-    setPublishing(true);
-    try {
-      const action = report.period.status === 'published' ? 'unpublish' : 'publish';
-      await apiFetch('/report-publish', {
-        method: 'PUT',
-        body: JSON.stringify({ reportPeriodId: report.period.id, action }),
-      });
-      refetch();
-    } catch {
-      // silent
-    } finally {
-      setPublishing(false);
-    }
-  };
 
   // Build dynamic tabs from available sections
   const tabs = useMemo(() => {
@@ -80,8 +36,14 @@ export function DashboardPage() {
     return dynamicTabs;
   }, [report]);
 
+  // Fall back to overview if active tab doesn't exist in the new report
+  useEffect(() => {
+    if (tabs.length > 0 && !tabs.some((t) => t.key === activeTab)) {
+      setActiveTab('overview');
+    }
+  }, [tabs, activeTab]);
+
   const handlePeriodSelect = (p: string) => {
-    setActiveTab('overview');
     navigate(`/${clientSlug}/${p}`);
   };
 
@@ -89,10 +51,12 @@ export function DashboardPage() {
     window.print();
   };
 
-  if (loading) {
+  const clientName = report?.client.name || clientSlug || '';
+
+  if (loading && !report) {
     return (
       <div className="min-h-screen bg-bg">
-        <MinimalTopbar />
+        <Topbar clientName={clientName} />
         <div className="flex items-center justify-center" style={{ minHeight: 'calc(100vh - 58px)' }}>
           <div className="text-text-3 font-mono text-sm animate-pulse">Loading report...</div>
         </div>
@@ -100,10 +64,10 @@ export function DashboardPage() {
     );
   }
 
-  if (error || !report) {
+  if (error && !report) {
     return (
       <div className="min-h-screen bg-bg">
-        <MinimalTopbar />
+        <Topbar clientName={clientName} />
         <div className="flex items-center justify-center" style={{ minHeight: 'calc(100vh - 58px)' }}>
           <div className="text-center">
             <p className="text-red font-mono text-sm mb-2">{error || 'Report not found'}</p>
@@ -116,88 +80,64 @@ export function DashboardPage() {
     );
   }
 
+  if (!report) return null;
+
   const currentPeriod = report.period.period_start.slice(0, 7);
+
+  const monthPicker = periods.length > 1 ? (
+    <MonthPicker
+      periods={periods}
+      current={currentPeriod}
+      onSelect={handlePeriodSelect}
+      loading={switching}
+    />
+  ) : undefined;
 
   return (
     <div className="min-h-screen bg-bg">
-      <Topbar
-        clientName={report.client.name}
-        periodStart={report.period.period_start}
-        status={report.period.status}
+      <Topbar clientName={report.client.name} />
+      <TabNav
+        tabs={tabs}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        leftSlot={monthPicker}
       />
-      {user?.role === 'admin' && (
-        <div className="bg-surface-2 border-b border-border-v1 print:hidden">
-          <div className="max-w-[1200px] mx-auto px-6 h-[40px] flex items-center gap-3">
-            <span className="font-mono text-[10px] text-text-3 tracking-[0.05em]">
-              {report.period.status === 'draft' ? 'DRAFT' : 'PUBLISHED'}
-            </span>
-            <button
-              onClick={handlePublishToggle}
-              disabled={publishing}
-              className={cn(
-                'font-mono text-[10px] tracking-[0.05em] px-3 py-1 rounded-lg transition-colors disabled:opacity-50',
-                report.period.status === 'draft'
-                  ? 'text-bg bg-blue hover:bg-blue-dim'
-                  : 'text-text-3 border border-border-v1 hover:text-text-2'
-              )}
-            >
-              {publishing
-                ? '...'
-                : report.period.status === 'draft'
-                  ? 'PUBLISH'
-                  : 'UNPUBLISH'}
-            </button>
-            <Link
-              to={`/admin/clients/${clientSlug}`}
-              className="ml-auto font-mono text-[10px] text-text-3 hover:text-text-2 transition-colors tracking-[0.05em]"
-            >
-              CLIENT SETTINGS
-            </Link>
-          </div>
-        </div>
-      )}
-      <TabNav tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
 
       <div className="max-w-[1200px] mx-auto px-6 pt-7 pb-20">
-        {/* Month picker */}
-        {periods.length > 1 && (
-          <div className="mb-6 print:hidden">
-            <MonthPicker
-              periods={periods}
-              current={currentPeriod}
-              onSelect={handlePeriodSelect}
-            />
-          </div>
+        {switching ? (
+          <ReportSkeleton />
+        ) : (
+          <>
+            {/* Overview tab — always rendered, hidden when inactive (but visible in print) */}
+            <div className={cn(activeTab !== 'overview' && 'hidden print:block')}>
+              <OverviewTab
+                periodStart={report.period.period_start}
+                overview={report.period.overview}
+                priorities={report.period.next_priorities}
+                onExport={handleExport}
+              />
+            </div>
+
+            {/* Source tabs — all rendered, each hidden when inactive (but visible in print) */}
+            {report.sections.map((section) => (
+              <div
+                key={section.source}
+                className={cn(
+                  'print-section',
+                  activeTab !== section.source && 'hidden print:block'
+                )}
+              >
+                <SourceTab
+                  source={section.source}
+                  kpis={section.kpis}
+                  tables={section.tables}
+                  railshopNotes={section.railshop_notes}
+                  servicetitanBlended={section.servicetitan_blended}
+                />
+              </div>
+            ))}
+          </>
         )}
-
-        {/* Overview tab — always rendered, hidden when inactive (but visible in print) */}
-        <div className={cn(activeTab !== 'overview' && 'hidden print:block')}>
-          <OverviewTab
-            periodStart={report.period.period_start}
-            overview={report.period.overview}
-            priorities={report.period.next_priorities}
-            onExport={handleExport}
-          />
-        </div>
-
-        {/* Source tabs — all rendered, each hidden when inactive (but visible in print) */}
-        {report.sections.map((section) => (
-          <div
-            key={section.source}
-            className={cn(
-              'print-section',
-              activeTab !== section.source && 'hidden print:block'
-            )}
-          >
-            <SourceTab
-              source={section.source}
-              kpis={section.kpis}
-              tables={section.tables}
-              railshopNotes={section.railshop_notes}
-              servicetitanBlended={section.servicetitan_blended}
-            />
-          </div>
-        ))}
       </div>
     </div>
   );

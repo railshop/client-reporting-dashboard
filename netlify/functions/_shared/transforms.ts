@@ -1,4 +1,4 @@
-import { formatNumber, formatPercent, formatDollars, calcDelta } from './data-pull-utils';
+import { formatNumber, formatCompact, formatPercent, formatDollars, calcDelta } from './data-pull-utils';
 import { computeChannelRollups, type ChannelRollup } from './servicetitan-channel-map';
 
 type SourceType = 'ga4' | 'gsc' | 'google_ads' | 'meta' | 'lsa' | 'servicetitan' | 'gbp';
@@ -15,11 +15,11 @@ function transformGA4(raw: Record<string, any>): TransformResult {
   const prv = raw.previous || {};
 
   const kpis = [
-    { label: 'New Users', value: formatNumber(cur.newUsers || 0), ...calcDelta(cur.newUsers || 0, prv.newUsers || 0), color: 'default' as const },
-    { label: 'Sessions', value: formatNumber(cur.sessions || 0), ...calcDelta(cur.sessions || 0, prv.sessions || 0), color: 'default' as const },
-    { label: 'Organic Sessions', value: formatNumber(cur.organicSessions || 0), ...calcDelta(cur.organicSessions || 0, prv.organicSessions || 0), color: 'default' as const },
-    { label: 'Direct Sessions', value: formatNumber(cur.directSessions || 0), ...calcDelta(cur.directSessions || 0, prv.directSessions || 0), color: 'default' as const },
-    { label: 'Paid Sessions', value: formatNumber(cur.paidSessions || 0), ...calcDelta(cur.paidSessions || 0, prv.paidSessions || 0), color: 'default' as const },
+    { label: 'New Users', value: formatCompact(cur.newUsers || 0), ...calcDelta(cur.newUsers || 0, prv.newUsers || 0), color: 'default' as const },
+    { label: 'Sessions', value: formatCompact(cur.sessions || 0), ...calcDelta(cur.sessions || 0, prv.sessions || 0), color: 'default' as const },
+    { label: 'Organic Sessions', value: formatCompact(cur.organicSessions || 0), ...calcDelta(cur.organicSessions || 0, prv.organicSessions || 0), color: 'default' as const },
+    { label: 'Direct Sessions', value: formatCompact(cur.directSessions || 0), ...calcDelta(cur.directSessions || 0, prv.directSessions || 0), color: 'default' as const },
+    { label: 'Paid Sessions', value: formatCompact(cur.paidSessions || 0), ...calcDelta(cur.paidSessions || 0, prv.paidSessions || 0), color: 'default' as const },
     // TODO: Add conversions KPI once GA4 conversion events are configured per client
   ];
 
@@ -51,8 +51,8 @@ function transformGSC(raw: Record<string, any>): TransformResult {
   const prv = raw.previous;
 
   const kpis = [
-    { label: 'Clicks', value: formatNumber(cur.clicks), ...calcDelta(cur.clicks, prv.clicks), color: 'default' as const },
-    { label: 'Impressions', value: formatNumber(cur.impressions), ...calcDelta(cur.impressions, prv.impressions), color: 'default' as const },
+    { label: 'Clicks', value: formatCompact(cur.clicks), ...calcDelta(cur.clicks, prv.clicks), color: 'default' as const },
+    { label: 'Impressions', value: formatCompact(cur.impressions), ...calcDelta(cur.impressions, prv.impressions), color: 'default' as const },
     { label: 'CTR', value: formatPercent(cur.ctr * 100), ...calcDelta(cur.ctr * 100, prv.ctr * 100), color: 'default' as const },
     { label: 'Avg Position', value: cur.position.toFixed(1), ...calcDelta(prv.position, cur.position), color: 'default' as const },
   ];
@@ -90,9 +90,9 @@ function transformGoogleAds(raw: Record<string, any>): TransformResult {
   const prv = raw.previous;
 
   const kpis = [
-    { label: 'Impressions', value: formatNumber(cur.impressions), ...calcDelta(cur.impressions, prv.impressions), color: 'default' as const },
-    { label: 'Clicks', value: formatNumber(cur.clicks), ...calcDelta(cur.clicks, prv.clicks), color: 'default' as const },
-    { label: 'Conversions', value: formatNumber(cur.conversions), ...calcDelta(cur.conversions, prv.conversions), color: 'default' as const },
+    { label: 'Impressions', value: formatCompact(cur.impressions), ...calcDelta(cur.impressions, prv.impressions), color: 'default' as const },
+    { label: 'Clicks', value: formatCompact(cur.clicks), ...calcDelta(cur.clicks, prv.clicks), color: 'default' as const },
+    { label: 'Conversions', value: formatCompact(cur.conversions), ...calcDelta(cur.conversions, prv.conversions), color: 'default' as const },
     { label: 'Spend', value: formatDollars(cur.spend), ...calcDelta(cur.costMicros, prv.costMicros), color: 'default' as const },
     { label: 'Cost/Conv', value: formatDollars(cur.conversions > 0 ? cur.spend / cur.conversions : 0), ...calcDelta(prv.costPerConversion, cur.costPerConversion), color: 'default' as const },
   ];
@@ -120,11 +120,11 @@ function transformMeta(raw: Record<string, any>): TransformResult {
   const prv = raw.previous;
 
   const kpis = [
-    { label: 'Reach', value: formatNumber(cur.reach), ...calcDelta(cur.reach, prv.reach), color: 'default' as const },
-    { label: 'Impressions', value: formatNumber(cur.impressions), ...calcDelta(cur.impressions, prv.impressions), color: 'default' as const },
-    { label: 'Clicks', value: formatNumber(cur.clicks), ...calcDelta(cur.clicks, prv.clicks), color: 'default' as const },
+    { label: 'Reach', value: formatCompact(cur.reach), ...calcDelta(cur.reach, prv.reach), color: 'default' as const },
+    { label: 'Impressions', value: formatCompact(cur.impressions), ...calcDelta(cur.impressions, prv.impressions), color: 'default' as const },
+    { label: 'Clicks', value: formatCompact(cur.clicks), ...calcDelta(cur.clicks, prv.clicks), color: 'default' as const },
     { label: 'CTR', value: formatPercent(cur.ctr), ...calcDelta(cur.ctr, prv.ctr), color: 'default' as const },
-    { label: 'Leads', value: formatNumber(cur.leads), ...calcDelta(cur.leads, prv.leads), color: 'default' as const },
+    { label: 'Leads', value: formatCompact(cur.leads), ...calcDelta(cur.leads, prv.leads), color: 'default' as const },
     { label: 'CPL', value: cur.leads > 0 ? formatDollars(cur.spend / cur.leads) : 'N/A', ...calcDelta(prv.cpl, cur.cpl), color: 'default' as const },
     { label: 'Spend', value: formatDollars(cur.spend), ...calcDelta(cur.spend, prv.spend), color: 'default' as const },
   ];
@@ -153,9 +153,9 @@ function transformServiceTitan(raw: Record<string, any>): TransformResult {
   const fmt$ = (v: number) => '$' + (v || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
 
   const kpis = [
-    { label: 'Jobs Booked', value: formatNumber(cur.totalJobsBooked || 0), color: 'default' as const },
-    { label: 'New Customers', value: formatNumber(cur.jobsBookedNew || 0), color: 'default' as const },
-    { label: 'Existing Customers', value: formatNumber(cur.jobsBookedExisting || 0), color: 'default' as const },
+    { label: 'Jobs Booked', value: formatCompact(cur.totalJobsBooked || 0), color: 'default' as const },
+    { label: 'New Customers', value: formatCompact(cur.jobsBookedNew || 0), color: 'default' as const },
+    { label: 'Existing Customers', value: formatCompact(cur.jobsBookedExisting || 0), color: 'default' as const },
     { label: 'Completed Revenue', value: formatDollars(cur.completedRevenue || 0), color: 'default' as const },
     { label: 'Total Sales', value: formatDollars(cur.totalSales || 0), color: 'default' as const },
     { label: 'Conversion Rate', value: formatPercent((cur.opportunityConversionRate || 0) * 100), color: 'default' as const },
@@ -213,8 +213,8 @@ function transformLSA(raw: Record<string, any>): TransformResult {
   const prv = raw.previous || {};
 
   const kpis = [
-    { label: 'Leads', value: formatNumber(cur.leads || 0), ...calcDelta(cur.leads || 0, prv.leads || 0), color: 'default' as const },
-    { label: 'Impressions', value: formatNumber(cur.impressions || 0), ...calcDelta(cur.impressions || 0, prv.impressions || 0), color: 'default' as const },
+    { label: 'Leads', value: formatCompact(cur.leads || 0), ...calcDelta(cur.leads || 0, prv.leads || 0), color: 'default' as const },
+    { label: 'Impressions', value: formatCompact(cur.impressions || 0), ...calcDelta(cur.impressions || 0, prv.impressions || 0), color: 'default' as const },
     { label: 'Impression → Lead', value: formatPercent(cur.impressionToLeadRate || 0), ...calcDelta(cur.impressionToLeadRate || 0, prv.impressionToLeadRate || 0), color: 'default' as const },
     { label: 'Absolute Top Rate', value: formatPercent(cur.absoluteTopRate || 0), ...calcDelta(cur.absoluteTopRate || 0, prv.absoluteTopRate || 0), color: 'default' as const },
     { label: 'Spend', value: formatDollars(cur.spend || 0), ...calcDelta(cur.spend || 0, prv.spend || 0), color: 'default' as const },
@@ -228,12 +228,12 @@ function transformGBP(raw: Record<string, any>): TransformResult {
   const prv = raw.previous;
 
   const kpis = [
-    { label: 'Total Views', value: formatNumber(cur.totalImpressions), ...calcDelta(cur.totalImpressions, prv.totalImpressions), color: 'default' as const },
-    { label: 'Maps Views', value: formatNumber(cur.mapsImpressions), ...calcDelta(cur.mapsImpressions, prv.mapsImpressions), color: 'default' as const },
-    { label: 'Search Views', value: formatNumber(cur.searchImpressions), ...calcDelta(cur.searchImpressions, prv.searchImpressions), color: 'default' as const },
-    { label: 'Phone Calls', value: formatNumber(cur.calls), ...calcDelta(cur.calls, prv.calls), color: 'default' as const },
-    { label: 'Website Clicks', value: formatNumber(cur.websiteClicks), ...calcDelta(cur.websiteClicks, prv.websiteClicks), color: 'default' as const },
-    { label: 'Direction Requests', value: formatNumber(cur.directions), ...calcDelta(cur.directions, prv.directions), color: 'default' as const },
+    { label: 'Total Views', value: formatCompact(cur.totalImpressions), ...calcDelta(cur.totalImpressions, prv.totalImpressions), color: 'default' as const },
+    { label: 'Maps Views', value: formatCompact(cur.mapsImpressions), ...calcDelta(cur.mapsImpressions, prv.mapsImpressions), color: 'default' as const },
+    { label: 'Search Views', value: formatCompact(cur.searchImpressions), ...calcDelta(cur.searchImpressions, prv.searchImpressions), color: 'default' as const },
+    { label: 'Phone Calls', value: formatCompact(cur.calls), ...calcDelta(cur.calls, prv.calls), color: 'default' as const },
+    { label: 'Website Clicks', value: formatCompact(cur.websiteClicks), ...calcDelta(cur.websiteClicks, prv.websiteClicks), color: 'default' as const },
+    { label: 'Direction Requests', value: formatCompact(cur.directions), ...calcDelta(cur.directions, prv.directions), color: 'default' as const },
   ];
 
   return { kpis, tables: {} };

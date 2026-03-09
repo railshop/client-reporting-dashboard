@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
 import { formatPeriod } from '@/lib/utils';
+import { DeltaChip } from './DeltaChip';
 import type { KpiItem } from '@/shared/schemas/common';
 
 interface HeroBandProps {
@@ -57,13 +58,6 @@ export function HeroBand({ periodStart, headline, summary, heroStats, onExport }
                 stat.color === 'green' ? 'text-v1-green' :
                 stat.color === 'gold' ? 'text-v1-gold' :
                 'text-text-v1';
-              const deltaColor =
-                stat.direction === 'up' ? 'text-v1-green' :
-                stat.direction === 'down' ? 'text-v1-red' :
-                'text-text-3';
-              const arrow =
-                stat.direction === 'up' ? '↑ ' :
-                stat.direction === 'down' ? '↓ ' : '';
 
               return (
                 <div key={stat.label} className="bg-surface-2 px-[18px] py-4">
@@ -73,12 +67,11 @@ export function HeroBand({ periodStart, headline, summary, heroStats, onExport }
                   <div className={cn('text-[26px] font-extrabold leading-none tracking-[-0.03em]', colorClass)}>
                     {stat.value}
                   </div>
-                  <div className="font-mono text-[10px] text-text-3 mt-1.5">
-                    <span className={cn('font-medium', deltaColor)}>
-                      {arrow}{stat.delta}
-                    </span>
-                    {stat.direction !== 'neutral' && <span> vs prev</span>}
-                  </div>
+                  {stat.delta && (
+                    <div className="mt-[10px]">
+                      <DeltaChip delta={stat.delta} direction={stat.direction} />
+                    </div>
+                  )}
                 </div>
               );
             })}

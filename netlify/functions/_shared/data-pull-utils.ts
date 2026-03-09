@@ -68,6 +68,13 @@ export function formatNumber(n: number): string {
   return n.toLocaleString('en-US');
 }
 
+/** Compact number for KPI cards: 1,234 stays as-is, 10k+, 1.2M */
+export function formatCompact(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 10_000) return (n / 1_000).toFixed(1) + 'k';
+  return n.toLocaleString('en-US');
+}
+
 export function formatPercent(n: number): string {
   return n.toFixed(1) + '%';
 }

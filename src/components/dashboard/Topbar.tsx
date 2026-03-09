@@ -1,13 +1,10 @@
 import { useAuth } from '@/hooks/useAuth';
-import { formatPeriod } from '@/lib/utils';
 
 interface TopbarProps {
   clientName: string;
-  periodStart: string;
-  status: 'draft' | 'published';
 }
 
-export function Topbar({ clientName, periodStart, status }: TopbarProps) {
+export function Topbar({ clientName }: TopbarProps) {
   const { logout, user } = useAuth();
 
   return (
@@ -18,27 +15,15 @@ export function Topbar({ clientName, periodStart, status }: TopbarProps) {
         <span className="text-[13px] font-semibold text-text-2 tracking-[0.01em]">
           {clientName}
         </span>
-        <div className="flex items-center gap-[10px] ml-auto">
-          <span className="font-mono text-[10px] text-text-3 bg-surface-2 border border-border-v1 rounded-full px-[13px] py-[5px] tracking-[0.06em] whitespace-nowrap">
-            {formatPeriod(periodStart)}
-          </span>
-          {status === 'published' && (
-            <span className="flex items-center gap-1.5 font-mono text-[10px] text-blue tracking-[0.05em] whitespace-nowrap">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue animate-[blink_2.4s_ease-in-out_infinite]" />
-              LIVE
+        <div className="flex items-center gap-3 ml-auto">
+          {user && (
+            <span className="font-mono text-[10px] text-text-3 tracking-[0.05em]">
+              {user.name || user.email}
             </span>
-          )}
-          {user?.role === 'admin' && (
-            <button
-              onClick={() => window.history.back()}
-              className="font-mono text-[10px] text-text-3 hover:text-text-2 transition-colors ml-2"
-            >
-              BACK
-            </button>
           )}
           <button
             onClick={logout}
-            className="font-mono text-[10px] text-text-3 hover:text-text-2 transition-colors"
+            className="font-mono text-[10px] text-text-3 hover:text-text-2 transition-colors tracking-[0.05em]"
           >
             LOGOUT
           </button>

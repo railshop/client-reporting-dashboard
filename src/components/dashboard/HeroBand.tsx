@@ -69,7 +69,7 @@ export function HeroBand({ periodStart, headline, summary, heroStats, onExport }
                   </div>
                   {stat.delta && (
                     <div className="mt-[10px]">
-                      <DeltaChip delta={stat.delta} direction={stat.direction} />
+                      <DeltaChip delta={stat.delta} direction={stat.direction ?? 'neutral'} />
                     </div>
                   )}
                 </div>

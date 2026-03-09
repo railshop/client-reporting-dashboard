@@ -341,7 +341,7 @@ function SourceCard({
   source,
   existing,
   googleAdsConfigured,
-  googleAdsDataSourceId,
+  googleAdsDataSourceId: _googleAdsDataSourceId,
   onUpdated,
 }: {
   clientSlug: string;

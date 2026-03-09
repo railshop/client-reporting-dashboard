@@ -30,7 +30,7 @@ export function KpiCard({ kpi, index = 0 }: KpiCardProps) {
       </div>
       {kpi.delta && (
         <div className="flex items-center gap-1.5 mt-[10px]">
-          <DeltaChip delta={kpi.delta} direction={kpi.direction} />
+          <DeltaChip delta={kpi.delta} direction={kpi.direction ?? 'neutral'} />
         </div>
       )}
     </div>
